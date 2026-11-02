@@ -201,7 +201,7 @@ class _PassCard extends StatelessWidget {
         children: [
           Text(
             fair?.name ?? 'Eduxfair',
-            style: text.titleMedium?.copyWith(color: Colors.white),
+            style: text.titleMedium?.copyWith(color: colors.textOnDark),
             textAlign: TextAlign.center,
           ),
           if (fair != null) ...[
@@ -209,7 +209,7 @@ class _PassCard extends StatelessWidget {
             Text(
               '${fair.location} · ${_formatDate(fair.startsAt)}',
               style: text.bodySmall?.copyWith(
-                color: Colors.white.withValues(alpha: 0.72),
+                color: colors.textOnDark.withValues(alpha: 0.72),
               ),
             ),
           ],
@@ -217,7 +217,7 @@ class _PassCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: colors.textOnDark,
               borderRadius: BorderRadius.circular(18),
             ),
             child: QrImageView(
@@ -241,7 +241,7 @@ class _PassCard extends StatelessWidget {
           Text(
             'PASS CODE',
             style: text.labelSmall?.copyWith(
-              color: Colors.white.withValues(alpha: 0.6),
+              color: colors.textOnDark.withValues(alpha: 0.6),
               letterSpacing: 1.4,
               fontWeight: FontWeight.w700,
             ),
@@ -252,7 +252,7 @@ class _PassCard extends StatelessWidget {
           Text(
             registration.displayCode,
             style: text.headlineSmall?.copyWith(
-              color: Colors.white,
+              color: colors.textOnDark,
               letterSpacing: 4,
               fontWeight: FontWeight.w700,
             ),

@@ -36,7 +36,10 @@ import 'package:provider/provider.dart';
 
 import 'package:lekkside_connect/features/auth/providers/auth_provider.dart';
 import 'package:lekkside_connect/features/auth/screens/login_screen.dart';
+import 'package:lekkside_connect/core/theme/theme_provider.dart';
 import 'package:lekkside_connect/features/discover/models/institution.dart';
+import 'package:lekkside_connect/features/passport/providers/passport_provider.dart';
+import 'package:lekkside_connect/features/profile/screens/profile_screen.dart';
 import 'package:lekkside_connect/features/discover/widgets/institution_tile.dart';
 import 'package:lekkside_connect/features/social/models/post.dart';
 import 'package:lekkside_connect/features/shell/widgets/floating_nav_bar.dart';
@@ -262,6 +265,28 @@ void main() {
         ),
         theme: theme,
         size: const Size(390, 844),
+      );
+    });
+  }
+
+  for (final name in ['light', 'dark']) {
+    testWidgets('settings — $name', (tester) async {
+      final theme =
+          name == 'light' ? AppTheme.lightTheme : AppTheme.darkTheme;
+      await shoot(
+        tester,
+        'settings_$name',
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider(create: (_) => AuthProvider()),
+            ChangeNotifierProvider(create: (_) => PassportProvider()),
+            ChangeNotifierProvider(
+                create: (_) => ThemeProvider(autoLoad: false)),
+          ],
+          child: const ProfileScreen(),
+        ),
+        theme: theme,
+        size: const Size(390, 900),
       );
     });
   }

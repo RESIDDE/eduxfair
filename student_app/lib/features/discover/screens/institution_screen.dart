@@ -478,7 +478,7 @@ class _HeaderSliver extends StatelessWidget {
       pinned: true,
       expandedHeight: 220,
       backgroundColor: colors.primary,
-      foregroundColor: Colors.white,
+      foregroundColor: colors.textOnDark,
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           fit: StackFit.expand,
@@ -514,7 +514,7 @@ class _HeaderSliver extends StatelessWidget {
                     style: Theme.of(context)
                         .textTheme
                         .labelSmall
-                        ?.copyWith(color: Colors.white),
+                        ?.copyWith(color: colors.textOnDark),
                   ),
                 ),
               ),
@@ -864,7 +864,7 @@ class _Step extends StatelessWidget {
             child: Text(
               '$index',
               style: text.labelMedium?.copyWith(
-                color: Colors.white,
+                color: colors.textOnDark,
                 fontWeight: FontWeight.w700,
               ),
             ),

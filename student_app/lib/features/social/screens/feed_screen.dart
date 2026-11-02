@@ -861,7 +861,7 @@ class _FeedListState extends State<_FeedList>
               _ComposeQuickAction(
                 icon: Icons.image_rounded,
                 label: 'Photo',
-                color: Colors.green,
+                color: colors.success,
                 onTap: () => context.push(AppConstants.routeCompose),
               ),
               _ComposeQuickAction(
@@ -873,7 +873,7 @@ class _FeedListState extends State<_FeedList>
               _ComposeQuickAction(
                 icon: Icons.public_rounded,
                 label: 'Public Feed',
-                color: Colors.blueAccent,
+                color: colors.info,
                 onTap: () => context.push(AppConstants.routeCompose),
               ),
             ],

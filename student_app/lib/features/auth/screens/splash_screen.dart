@@ -85,7 +85,7 @@ class _SplashScreenState extends State<SplashScreen> {
               Text(
                 AppConstants.appName,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: Colors.white,
+                      color: colors.textOnDark,
                       fontWeight: FontWeight.w700,
                     ),
               ).animate(delay: 200.ms).fadeIn(duration: 400.ms).slideY(begin: 0.3),
@@ -93,7 +93,7 @@ class _SplashScreenState extends State<SplashScreen> {
               Text(
                 AppConstants.appTagline,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.75),
+                      color: colors.textOnDark.withValues(alpha: 0.75),
                     ),
               ).animate(delay: 350.ms).fadeIn(duration: 400.ms),
             ],
