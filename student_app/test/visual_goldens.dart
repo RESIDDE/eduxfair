@@ -33,6 +33,7 @@ import 'package:lekkside_connect/core/widgets/material_surface.dart';
 import 'package:lekkside_connect/features/discover/models/institution.dart';
 import 'package:lekkside_connect/features/discover/widgets/institution_tile.dart';
 import 'package:lekkside_connect/features/social/models/post.dart';
+import 'package:lekkside_connect/features/shell/widgets/floating_nav_bar.dart';
 import 'package:lekkside_connect/features/social/widgets/post_card.dart';
 
 /// Registers a real typeface so the goldens show letters instead of boxes.
@@ -151,6 +152,65 @@ void main() {
       find.byType(MaterialApp),
       matchesGoldenFile('goldens/$name.png'),
     );
+  }
+
+  // The nav capsule floats over content, so these are shot over a stand-in
+  // for a bright photo — a capsule looks fine over flat grey and illegible
+  // over a picture, which is the case that matters.
+  Widget navOver(Widget bar) => Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFE9B949), Color(0xFF9B59B6)],
+                ),
+              ),
+            ),
+          ),
+          bar,
+        ],
+      );
+
+  // The theme getters call google_fonts, which reads the asset bundle, so
+  // they cannot be evaluated in a loop header — that runs before the test
+  // binding exists. Resolve them inside the test body.
+  for (final name in ['light', 'dark']) {
+    testWidgets('nav bar — $name, expanded', (tester) async {
+      final theme =
+          name == 'light' ? AppTheme.lightTheme : AppTheme.darkTheme;
+      await shoot(
+        tester,
+        'nav_bar_${name}_expanded',
+        navOver(FloatingNavBar(
+          currentIndex: 0,
+          onTap: (_) {},
+          badges: const {3: 4, 4: 12},
+        )),
+        theme: theme,
+        size: const Size(390, 140),
+      );
+    });
+
+    testWidgets('nav bar — $name, collapsed', (tester) async {
+      final theme =
+          name == 'light' ? AppTheme.lightTheme : AppTheme.darkTheme;
+      await shoot(
+        tester,
+        'nav_bar_${name}_collapsed',
+        navOver(FloatingNavBar(
+          currentIndex: 0,
+          onTap: (_) {},
+          badges: const {3: 4, 4: 12},
+          collapse: 1,
+        )),
+        theme: theme,
+        size: const Size(390, 140),
+      );
+    });
   }
 
   testWidgets('post card — light', (tester) async {
