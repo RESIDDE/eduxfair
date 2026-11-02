@@ -32,6 +32,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lekkside_connect/core/theme/app_theme.dart';
 import 'package:lekkside_connect/core/widgets/custom_button.dart';
 import 'package:lekkside_connect/core/widgets/material_surface.dart';
+import 'package:provider/provider.dart';
+
+import 'package:lekkside_connect/features/auth/providers/auth_provider.dart';
+import 'package:lekkside_connect/features/auth/screens/login_screen.dart';
 import 'package:lekkside_connect/features/discover/models/institution.dart';
 import 'package:lekkside_connect/features/discover/widgets/institution_tile.dart';
 import 'package:lekkside_connect/features/social/models/post.dart';
@@ -173,6 +177,11 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(frame(child, theme, textScale: textScale));
+    // pumpAndSettle drives timers and animations but does not wait for an
+    // image to decode, so the first shot of a screen with Image.asset in it
+    // catches an empty box. runAsync lets the real load finish.
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)));
     await tester.pumpAndSettle();
 
     await expectLater(
@@ -236,6 +245,23 @@ void main() {
         )),
         theme: theme,
         size: const Size(390, 140),
+      );
+    });
+  }
+
+  for (final name in ['light', 'dark']) {
+    testWidgets('sign in — $name', (tester) async {
+      final theme =
+          name == 'light' ? AppTheme.lightTheme : AppTheme.darkTheme;
+      await shoot(
+        tester,
+        'login_$name',
+        ChangeNotifierProvider(
+          create: (_) => AuthProvider(),
+          child: const LoginScreen(),
+        ),
+        theme: theme,
+        size: const Size(390, 844),
       );
     });
   }

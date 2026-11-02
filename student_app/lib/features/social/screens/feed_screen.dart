@@ -9,6 +9,7 @@ import '../../../core/supabase/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/institution_avatar.dart';
+import '../../../core/widgets/chrome_button.dart';
 import '../../../core/widgets/material_surface.dart';
 import '../../../core/widgets/verified_badge.dart';
 import '../../../core/utils/motion.dart';
@@ -85,64 +86,53 @@ class _FeedScreenState extends State<FeedScreen> {
         ),
         scrolledUnderElevation: 0,
         titleSpacing: 0,
+        leadingWidth: 60,
+        // The avatar stays on the left because it opens the drawer, and a
+        // left-hand panel that is summoned from the right-hand side of the bar
+        // reads as a mistake. The reference has no drawer to reconcile.
         leading: Builder(
-          builder: (context) => IconButton(
-            tooltip: 'Your account',
-            onPressed: () => Scaffold.of(context).openDrawer(),
-            icon: InstitutionAvatar(
-              logoUrl: user?.avatarUrl,
-              initials: user?.initials ?? '?',
-              size: 32,
+          builder: (context) => Center(
+            child: ChromeButton(
+              tooltip: 'Your account',
+              onTap: () => Scaffold.of(context).openDrawer(),
+              child: InstitutionAvatar(
+                logoUrl: user?.avatarUrl,
+                initials: user?.initials ?? '?',
+                size: 30,
+              ),
             ),
           ),
         ),
-        title: Icon(Icons.school_rounded, size: 26, color: colors.accent),
+        title: Text(
+          AppConstants.appName,
+          style: Theme.of(context)
+              .textTheme
+              .headlineSmall
+              ?.copyWith(color: colors.textPrimary),
+        ),
         centerTitle: true,
         actions: [
+          // One compose entry point in the chrome, where this screen used to
+          // carry three — an app-bar pill, an extended FAB and the prompt card.
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: colors.accent,
-                foregroundColor: colors.onAccent,
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                elevation: 0,
-              ),
-              onPressed: () => context.push(AppConstants.routeCompose),
-              icon: const Icon(Icons.edit_note_rounded, size: 18),
-              label: const Text(
-                'Post',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-              ),
+            padding: const EdgeInsets.only(right: 12),
+            child: ChromeButton.icon(
+              icon: Icons.add_rounded,
+              tooltip: 'New post',
+              onTap: () => context.push(AppConstants.routeCompose),
             ),
-          ),
-          IconButton(
-            tooltip: 'Settings',
-            onPressed: () => context.push(AppConstants.routeProfile),
-            icon: const Icon(Icons.settings_outlined, size: 22),
           ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(44),
           child: Align(
             alignment: Alignment.centerLeft,
+            // Sizes, weights, colours and the indicator all come from
+            // tabBarTheme now.
             child: TabBar(
               isScrollable: true,
               tabAlignment: TabAlignment.start,
-              dividerColor: colors.divider,
-              indicatorSize: TabBarIndicatorSize.label,
-              indicatorColor: colors.accent,
-              indicatorWeight: 3,
-              labelColor: colors.textPrimary,
-              unselectedLabelColor: colors.textSecondary,
-              labelStyle: const TextStyle(
-                  fontSize: 14.5, fontWeight: FontWeight.w700),
-              unselectedLabelStyle: const TextStyle(
-                  fontSize: 14.5, fontWeight: FontWeight.w500),
+              indicatorWeight: 2,
               onTap: (i) => feed.load(feed.tabs[i]),
               tabs: feed.tabs.map((t) => Tab(text: t.label)).toList(),
             ),
@@ -151,25 +141,6 @@ class _FeedScreenState extends State<FeedScreen> {
       ),
 
       drawer: const AppDrawer(),
-
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 60),
-        child: FloatingActionButton.extended(
-          onPressed: () => context.push(AppConstants.routeCompose),
-          backgroundColor: colors.accent,
-          foregroundColor: colors.onAccent,
-          elevation: 4,
-          icon: const Icon(Icons.edit_rounded, size: 20),
-          label: const Text(
-            'Post',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ),
-      ),
 
       body: TabBarView(
         children: feed.tabs
