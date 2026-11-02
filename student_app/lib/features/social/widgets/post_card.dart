@@ -14,9 +14,17 @@ import 'post_actions.dart';
 
 /// One post in a feed.
 ///
-/// Laid out like the X reference: avatar in a left gutter, everything else in a
-/// column beside it, and a single row of actions underneath. Used by every
-/// feed, the profile and the detail screen, so the anatomy is defined once.
+/// Laid out like Instagram: a header strip, then full-bleed media, then the
+/// action row, then the caption. The media is edge-to-edge rather than inset
+/// behind an avatar gutter, which is the whole reason for the change — in the
+/// old X-style layout the picture only ever got about 308 of a 390pt phone's
+/// width.
+///
+/// Media is boxed at **16:9** rather than at the image's own ratio. Instagram
+/// runs 4:5 portrait and taller, which gives one post per screen; 16:9 keeps
+/// the next post peeking at the bottom edge, so the feed still reads as a
+/// feed. Used by every feed, the profile and the detail screen, so the anatomy
+/// is defined once.
 class PostCard extends StatelessWidget {
   final Post post;
   final VoidCallback? onTap;
@@ -52,6 +60,34 @@ class PostCard extends StatelessWidget {
     // A plain reshare shows the original with a line above saying who shared
     // it; a quote is its own post with the original embedded below.
     final content = post.content;
+    final hasMedia = content.media.isNotEmpty;
+    final hasBody = (content.body ?? '').trim().isNotEmpty;
+
+    final actions = Padding(
+      padding: const EdgeInsets.fromLTRB(6, 2, 6, 0),
+      child: PostActions(
+        post: post,
+        onReply: onReply,
+        onLike: onLike,
+        onRepost: onRepost,
+        onBookmark: onBookmark,
+        onShare: onShare,
+      ),
+    );
+
+    // Everything that hangs off a post but is not its picture or its words.
+    // Inset to the text column; only the media goes edge to edge.
+    final extras = <Widget>[
+      if (content.tags.isNotEmpty) _Tags(tags: content.tags),
+      if (content.linkUrl != null) _LinkPreview(url: content.linkUrl!),
+      if (post.isQuote)
+        _QuotedPost(
+          post: post.reposted!,
+          onTap: () => onAuthorTap?.call(post.reposted!.authorHandle),
+        ),
+      if (content.showsKindChip || content.topics.isNotEmpty)
+        _Chips(post: content),
+    ];
 
     return Pressable.surface(
       onTap: expanded ? null : onTap,
@@ -60,7 +96,7 @@ class PostCard extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: colors.divider)),
         ),
-        padding: const EdgeInsets.fromLTRB(16, 12, 12, 4),
+        padding: const EdgeInsets.only(bottom: 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -72,134 +108,70 @@ class PostCard extends StatelessWidget {
             if (post.isPinned)
               const _ContextLine(icon: Icons.push_pin_rounded, text: 'Pinned'),
 
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GestureDetector(
-                  onTap: () => onAuthorTap?.call(content.authorHandle),
-                  child: InstitutionAvatar(
-                    logoUrl: content.authorAvatar,
-                    initials: _initials(content.authorName),
-                    size: 42,
+            // ── Header strip ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => onAuthorTap?.call(content.authorHandle),
+                    child: InstitutionAvatar(
+                      logoUrl: content.authorAvatar,
+                      initials: _initials(content.authorName),
+                      size: 34,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _Header(
-                        post: content,
-                        onAuthorTap: onAuthorTap,
-                        onMore: onMore == null ? null : () => onMore!(post),
-                      ),
-
-                      if ((content.body ?? '').trim().isNotEmpty) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          content.body!,
-                          style: expanded
-                              ? Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(height: 1.45)
-                              : Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge
-                                  ?.copyWith(height: 1.4),
-                        ),
-                      ],
-
-                      if (content.tags.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: [
-                            for (final tag in content.tags)
-                              InkWell(
-                                onTap: () => context.push(
-                                    '${AppConstants.routeHandle}/${tag.handle}'),
-                                borderRadius: BorderRadius.circular(6),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 7, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        colors.accent.withValues(alpha: 0.08),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color:
-                                          colors.accent.withValues(alpha: 0.25),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        tag.isInstitution
-                                            ? Icons.apartment_rounded
-                                            : Icons.person_rounded,
-                                        size: 13,
-                                        color: colors.accent,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '@${tag.handle}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelSmall
-                                            ?.copyWith(
-                                              color: colors.accent,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-
-                      if (content.media.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        _Media(media: content.media),
-                      ],
-
-                      if (content.linkUrl != null) ...[
-                        const SizedBox(height: 10),
-                        _LinkPreview(url: content.linkUrl!),
-                      ],
-
-                      // A quote shows the original in a bordered card below.
-                      if (post.isQuote) ...[
-                        const SizedBox(height: 10),
-                        _QuotedPost(
-                          post: post.reposted!,
-                          onTap: () =>
-                              onAuthorTap?.call(post.reposted!.authorHandle),
-                        ),
-                      ],
-
-                      if (content.showsKindChip || content.topics.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        _Chips(post: content),
-                      ],
-
-                      PostActions(
-                        post: post,
-                        onReply: onReply,
-                        onLike: onLike,
-                        onRepost: onRepost,
-                        onBookmark: onBookmark,
-                        onShare: onShare,
-                      ),
-                    ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _Header(
+                      post: content,
+                      onAuthorTap: onAuthorTap,
+                      onMore: onMore == null ? null : () => onMore!(post),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+
+            if (hasMedia) ...[
+              // The one full-bleed element.
+              _Media(media: content.media),
+              actions,
+              if (hasBody)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 2, 14, 0),
+                  child: _Caption(
+                    handle: content.authorHandle,
+                    body: content.body!,
+                    expanded: expanded,
+                  ),
+                ),
+            ] else if (hasBody)
+              // No picture to put them under, so the words lead and the
+              // actions close the card, as they did before.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
+                child: Text(
+                  content.body!,
+                  style: expanded
+                      ? Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(height: 1.45)
+                      : Theme.of(context)
+                          .textTheme
+                          .bodyLarge
+                          ?.copyWith(height: 1.4),
+                ),
+              ),
+
+            for (final extra in extras)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                child: extra,
+              ),
+
+            if (!hasMedia) actions,
           ],
         ),
       ),
@@ -307,8 +279,7 @@ class _ContextLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Padding(
-      // Indented to sit above the body column, not the avatar gutter.
-      padding: const EdgeInsets.only(left: 38, bottom: 4),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
       child: Row(
         children: [
           Icon(icon, size: 13, color: colors.textLight),
@@ -341,40 +312,178 @@ class _Media extends StatelessWidget {
           path: m.storagePath,
         );
 
-    if (media.length == 1) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: AspectRatio(
-          aspectRatio: media.first.aspectRatio,
-          child: CachedNetworkImage(
-            imageUrl: url(media.first),
-            fit: BoxFit.cover,
-            errorWidget: (_, __, ___) =>
-                Container(color: context.colors.surfaceVariant),
-          ),
-        ),
-      );
-    }
+    Widget tile(PostMedia m) => CachedNetworkImage(
+          imageUrl: url(m),
+          fit: BoxFit.cover,
+          errorWidget: (_, __, ___) =>
+              ColoredBox(color: context.colors.surfaceVariant),
+        );
 
-    // Two across, square-ish, as the reference does for multiples.
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 2,
-        crossAxisSpacing: 2,
-        children: media
-            .take(4)
-            .map((m) => CachedNetworkImage(
-                  imageUrl: url(m),
-                  fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) =>
-                      Container(color: context.colors.surfaceVariant),
-                ))
-            .toList(),
+    final shown = media.take(4).toList();
+
+    return ConstrainedBox(
+      // On a phone 16:9 of a full-bleed card is about a quarter of the screen,
+      // so this never binds there — it is for web and tablet widths, where
+      // 16:9 of a 900pt column would otherwise be half the window.
+      constraints:
+          BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.45),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: switch (shown.length) {
+          1 => tile(shown.first),
+          // Two across, each a tall half.
+          2 => Row(children: [
+              Expanded(child: tile(shown[0])),
+              const SizedBox(width: 2),
+              Expanded(child: tile(shown[1])),
+            ]),
+          // One large, two stacked. A 2x2 grid for three images leaves an
+          // empty cell, which is what this used to do.
+          3 => Row(children: [
+              Expanded(child: tile(shown[0])),
+              const SizedBox(width: 2),
+              Expanded(
+                child: Column(children: [
+                  Expanded(child: tile(shown[1])),
+                  const SizedBox(height: 2),
+                  Expanded(child: tile(shown[2])),
+                ]),
+              ),
+            ]),
+          _ => Row(children: [
+              Expanded(
+                child: Column(children: [
+                  Expanded(child: tile(shown[0])),
+                  const SizedBox(height: 2),
+                  Expanded(child: tile(shown[2])),
+                ]),
+              ),
+              const SizedBox(width: 2),
+              Expanded(
+                child: Column(children: [
+                  Expanded(child: tile(shown[1])),
+                  const SizedBox(height: 2),
+                  Expanded(child: tile(shown[3])),
+                ]),
+              ),
+            ]),
+        },
       ),
+    );
+  }
+}
+
+/// The caption, as Instagram sets it: the author's handle in bold, then the
+/// words, running straight on from it.
+class _Caption extends StatelessWidget {
+  final String handle;
+  final String body;
+  final bool expanded;
+
+  const _Caption({
+    required this.handle,
+    required this.body,
+    required this.expanded,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = Theme.of(context).textTheme;
+
+    final span = TextSpan(children: [
+      TextSpan(
+        text: '$handle  ',
+        style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      TextSpan(text: body, style: text.bodyLarge),
+    ]);
+
+    if (expanded) return Text.rich(span);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Measured rather than guessed from a character count, so "more" only
+        // appears when there actually is more.
+        final painter = TextPainter(
+          text: span,
+          maxLines: 2,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout(maxWidth: constraints.maxWidth);
+        final truncated = painter.didExceedMaxLines;
+        painter.dispose();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text.rich(span, maxLines: 2, overflow: TextOverflow.ellipsis),
+            if (truncated)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'more',
+                  // Tapping the card already opens the post, so this is a
+                  // signpost rather than its own control.
+                  style: text.bodySmall?.copyWith(color: colors.textLight),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// The @handles a post tags.
+class _Tags extends StatelessWidget {
+  final List<PostTag> tags;
+
+  const _Tags({required this.tags});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: [
+        for (final tag in tags)
+          InkWell(
+            onTap: () =>
+                context.push('${AppConstants.routeHandle}/${tag.handle}'),
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+              decoration: BoxDecoration(
+                color: colors.accent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(999),
+                border:
+                    Border.all(color: colors.accent.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    tag.isInstitution
+                        ? Icons.apartment_rounded
+                        : Icons.person_rounded,
+                    size: 13,
+                    color: colors.accent,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '@${tag.handle}',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: colors.accent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

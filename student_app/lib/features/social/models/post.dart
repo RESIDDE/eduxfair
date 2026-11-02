@@ -199,12 +199,6 @@ class PostMedia {
     this.height,
   });
 
-  /// Portrait images get a taller box; everything else is 16:9ish.
-  double get aspectRatio {
-    if (width == null || height == null || height == 0) return 16 / 10;
-    return (width! / height!).clamp(0.75, 1.91);
-  }
-
   factory PostMedia.fromMap(Map<String, dynamic> map) => PostMedia(
         storagePath: map['storage_path'] as String,
         altText: map['alt_text'] as String?,

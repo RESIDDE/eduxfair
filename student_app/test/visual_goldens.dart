@@ -26,6 +26,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:lekkside_connect/core/theme/app_theme.dart';
 import 'package:lekkside_connect/core/widgets/custom_button.dart';
@@ -71,6 +73,7 @@ Post fixture({
   bool liked = false,
   bool verified = true,
   int likes = 128,
+  int mediaCount = 0,
 }) =>
     Post(
       id: 'p1',
@@ -87,6 +90,13 @@ Post fixture({
       authorVerified: verified,
       authorCountry: 'CA',
       liked: liked,
+      // The URLs 404 in a widget test, so these render as the card's error
+      // fill. That is deliberate: what these goldens are for is the *box* —
+      // the 16:9 crop and the full-bleed edges — not the photograph.
+      media: [
+        for (var i = 0; i < mediaCount; i++)
+          PostMedia(storagePath: 'demo/$i.jpg', width: 1600, height: 900),
+      ],
       topics: const [
         PostTopic(kind: 'field', value: 'computer-science'),
         PostTopic(kind: 'country', value: 'CA'),
@@ -102,17 +112,34 @@ Widget frame(Widget child, ThemeData theme, {double textScale = 1.0}) =>
         textTheme: theme.textTheme.apply(fontFamily: goldenFont),
         primaryTextTheme: theme.primaryTextTheme.apply(fontFamily: goldenFont),
       ),
-      home: MediaQuery(
-        data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
-        child: Scaffold(
-          backgroundColor: theme.scaffoldBackgroundColor,
-          body: SafeArea(child: child),
+      // copyWith, not a fresh MediaQueryData: building one from scratch zeroes
+      // `size`, and anything that sizes itself against the screen — the post
+      // card caps its media at 45% of the height — then collapses to nothing.
+      home: Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(textScale)),
+          child: Scaffold(
+            backgroundColor: theme.scaffoldBackgroundColor,
+            body: SafeArea(child: child),
+          ),
         ),
       ),
     );
 
 void main() {
   setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    // A post with media builds its URLs through SupabaseService, which asserts
+    // the client is initialized. Nothing here talks to it — a dummy project is
+    // enough to get a storage URL back.
+    SharedPreferences.setMockInitialValues({});
+    await Supabase.initialize(
+      url: 'https://dummy.supabase.co',
+      publishableKey: 'dummy-key',
+      authOptions: const FlutterAuthClientOptions(autoRefreshToken: false),
+    );
+
     // The real Inter files are registered with the engine below, under the
     // same family name google_fonts asks for — so the glyphs are there.
     // google_fonts does not know that and will still try to fetch, which has
@@ -262,6 +289,26 @@ void main() {
         theme: AppTheme.lightTheme,
         size: const Size(390, 560),
         textScale: 1.6);
+  });
+
+  testWidgets('post card — one image, 16:9 and full bleed', (tester) async {
+    await shoot(
+      tester,
+      'post_card_media_one',
+      PostCard(post: fixture(mediaCount: 1, liked: true)),
+      theme: AppTheme.lightTheme,
+      size: const Size(390, 420),
+    );
+  });
+
+  testWidgets('post card — three images, no empty cell', (tester) async {
+    await shoot(
+      tester,
+      'post_card_media_three',
+      PostCard(post: fixture(mediaCount: 3)),
+      theme: AppTheme.darkTheme,
+      size: const Size(390, 420),
+    );
   });
 
   testWidgets('type scale — light', (tester) async {

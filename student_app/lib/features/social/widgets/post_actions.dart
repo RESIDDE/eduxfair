@@ -5,7 +5,8 @@ import '../../../core/utils/motion.dart';
 import '../../../core/widgets/pressable.dart';
 import '../models/post.dart';
 
-/// The row under every post: reply, repost, like, bookmark, share.
+/// The row under every post: like, reply, repost and share together on the
+/// left, save pushed to the right.
 ///
 /// No view count. It would need an impressions table and a write on every
 /// scroll, for a number that flatters the poster and tells a student nothing
@@ -37,39 +38,43 @@ class PostActions extends StatelessWidget {
     final counted = post.content;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 2),
+      padding: const EdgeInsets.only(top: 6, bottom: 2),
       child: Row(
         children: [
-          Expanded(
-            child: _Action(
-              icon: Icons.mode_comment_outlined,
-              count: counted.commentCount,
-              tooltip: 'Reply',
-              onTap: onReply == null ? null : () => onReply!(post),
-            ),
+          // Instagram's order, and its asymmetry: the four that act on the
+          // post sit together on the left with their counts beside them, and
+          // saving — which acts on *your* account rather than on the post — is
+          // pushed to the far right.
+          _Action(
+            icon: post.liked
+                ? Icons.favorite_rounded
+                : Icons.favorite_border_rounded,
+            count: counted.likeCount,
+            active: post.liked,
+            activeColor: colors.error,
+            tooltip: 'Like',
+            onTap: onLike == null ? null : () => onLike!(post),
           ),
-          Expanded(
-            child: _Action(
-              icon: Icons.repeat_rounded,
-              count: counted.repostCount,
-              active: post.repostedByMe,
-              activeColor: colors.success,
-              tooltip: post.repostedByMe ? 'Undo reshare' : 'Reshare',
-              onTap: onRepost == null ? null : () => onRepost!(post),
-            ),
+          _Action(
+            icon: Icons.mode_comment_outlined,
+            count: counted.commentCount,
+            tooltip: 'Reply',
+            onTap: onReply == null ? null : () => onReply!(post),
           ),
-          Expanded(
-            child: _Action(
-              icon: post.liked
-                  ? Icons.favorite_rounded
-                  : Icons.favorite_border_rounded,
-              count: counted.likeCount,
-              active: post.liked,
-              activeColor: colors.error,
-              tooltip: 'Like',
-              onTap: onLike == null ? null : () => onLike!(post),
-            ),
+          _Action(
+            icon: Icons.repeat_rounded,
+            count: counted.repostCount,
+            active: post.repostedByMe,
+            activeColor: colors.success,
+            tooltip: post.repostedByMe ? 'Undo reshare' : 'Reshare',
+            onTap: onRepost == null ? null : () => onRepost!(post),
           ),
+          _Action(
+            icon: Icons.send_outlined,
+            tooltip: 'Share',
+            onTap: onShare == null ? null : () => onShare!(post),
+          ),
+          const Spacer(),
           _Action(
             icon: post.bookmarked
                 ? Icons.bookmark_rounded
@@ -78,12 +83,6 @@ class PostActions extends StatelessWidget {
             activeColor: colors.accent,
             tooltip: post.bookmarked ? 'Saved' : 'Save',
             onTap: onBookmark == null ? null : () => onBookmark!(post),
-          ),
-          const SizedBox(width: 8),
-          _Action(
-            icon: Icons.ios_share_rounded,
-            tooltip: 'Share',
-            onTap: onShare == null ? null : () => onShare!(post),
           ),
         ],
       ),
@@ -163,7 +162,7 @@ class _ActionState extends State<_Action>
       child: Padding(
         // Generous vertical padding: these sit close together and a small
         // icon alone is below the minimum comfortable tap target.
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 7),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
