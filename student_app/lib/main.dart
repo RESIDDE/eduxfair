@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'core/constants/app_constants.dart';
+import 'core/theme/theme_provider.dart';
 import 'features/applications/providers/applications_provider.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/discover/providers/discover_provider.dart';
@@ -58,6 +59,7 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => PassportProvider()),
         ChangeNotifierProvider(create: (_) => DiscoverProvider()),

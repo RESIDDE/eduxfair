@@ -128,7 +128,7 @@ class AppTheme {
           // the label needs more room, so larger text is not clipped.
           minimumSize: const Size(double.infinity, 56),
           tapTargetSize: MaterialTapTargetSize.padded,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -140,7 +140,7 @@ class AppTheme {
           foregroundColor: colors.onAccent,
           disabledBackgroundColor: colors.surfaceVariant,
           disabledForegroundColor: colors.textLight,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           textStyle: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         ),
@@ -153,7 +153,7 @@ class AppTheme {
           // the label needs more room, so larger text is not clipped.
           minimumSize: const Size(double.infinity, 56),
           tapTargetSize: MaterialTapTargetSize.padded,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
           padding: const EdgeInsets.symmetric(vertical: 16),
         ),
@@ -169,23 +169,23 @@ class AppTheme {
         fillColor: colors.surfaceVariant,
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: colors.accent, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: colors.error, width: 1.5),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: colors.error, width: 1.5),
         ),
         labelStyle: GoogleFonts.inter(color: colors.textSecondary, fontSize: 14),
@@ -200,7 +200,7 @@ class AppTheme {
         color: colors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(12),
           side: BorderSide.none,
         ),
         margin: EdgeInsets.zero,
@@ -217,7 +217,7 @@ class AppTheme {
         backgroundColor: colors.surfaceVariant,
         selectedColor: colors.accent.withValues(alpha: 0.15),
         labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
         side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
@@ -239,6 +239,32 @@ class AppTheme {
         elevation: 8,
         surfaceTintColor: Colors.transparent,
         shadowColor: colors.border,
+      ),
+      // Sheets are chrome, so they carry the same 16pt top radius as the rest
+      // of the floating layer and a drag handle you can actually see.
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: colors.surface,
+        surfaceTintColor: Colors.transparent,
+        modalBarrierColor: colors.shadow,
+        showDragHandle: true,
+        dragHandleColor: colors.border,
+        elevation: 0,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+      ),
+      // The feed's tab strip. Instagram underlines with the text colour, not
+      // with the action colour — a blue indicator reads as a control.
+      tabBarTheme: TabBarThemeData(
+        labelColor: colors.textPrimary,
+        unselectedLabelColor: colors.textLight,
+        indicatorColor: colors.textPrimary,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
+        labelStyle:
+            GoogleFonts.inter(fontSize: 14.5, fontWeight: FontWeight.w700),
+        unselectedLabelStyle:
+            GoogleFonts.inter(fontSize: 14.5, fontWeight: FontWeight.w500),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
@@ -295,7 +321,7 @@ class AppTheme {
           // the label needs more room, so larger text is not clipped.
           minimumSize: const Size(double.infinity, 56),
           tapTargetSize: MaterialTapTargetSize.padded,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -307,7 +333,7 @@ class AppTheme {
           foregroundColor: colors.onAccent,
           disabledBackgroundColor: colors.surfaceVariant,
           disabledForegroundColor: colors.textLight,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           textStyle: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         ),
@@ -320,7 +346,7 @@ class AppTheme {
           // the label needs more room, so larger text is not clipped.
           minimumSize: const Size(double.infinity, 56),
           tapTargetSize: MaterialTapTargetSize.padded,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
           padding: const EdgeInsets.symmetric(vertical: 16),
         ),
@@ -336,23 +362,23 @@ class AppTheme {
         fillColor: colors.surfaceVariant,
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: colors.accent, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: colors.error, width: 1.5),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: colors.error, width: 1.5),
         ),
         labelStyle: GoogleFonts.inter(color: colors.textSecondary, fontSize: 14),
@@ -367,7 +393,7 @@ class AppTheme {
         color: colors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           side: BorderSide.none,
         ),
         margin: EdgeInsets.zero,
@@ -384,7 +410,7 @@ class AppTheme {
         backgroundColor: colors.surfaceVariant,
         selectedColor: colors.accent.withValues(alpha: 0.15),
         labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: colors.textPrimary),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
         side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
@@ -407,6 +433,32 @@ class AppTheme {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
+      ),
+      // Sheets are chrome, so they carry the same 16pt top radius as the rest
+      // of the floating layer and a drag handle you can actually see.
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: colors.surface,
+        surfaceTintColor: Colors.transparent,
+        modalBarrierColor: colors.shadow,
+        showDragHandle: true,
+        dragHandleColor: colors.border,
+        elevation: 0,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+      ),
+      // The feed's tab strip. Instagram underlines with the text colour, not
+      // with the action colour — a blue indicator reads as a control.
+      tabBarTheme: TabBarThemeData(
+        labelColor: colors.textPrimary,
+        unselectedLabelColor: colors.textLight,
+        indicatorColor: colors.textPrimary,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
+        labelStyle:
+            GoogleFonts.inter(fontSize: 14.5, fontWeight: FontWeight.w700),
+        unselectedLabelStyle:
+            GoogleFonts.inter(fontSize: 14.5, fontWeight: FontWeight.w500),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {

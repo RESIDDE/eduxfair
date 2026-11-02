@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/app_chrome.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -76,7 +77,8 @@ class _SpacesScreenState extends State<SpacesScreen> {
                     ],
                   )
                 : ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                    padding: EdgeInsets.fromLTRB(
+                        16, 8, 16, AppChrome.navClearance(context)),
                     children: [
                       if (live.isNotEmpty) ...[
                         _SectionLabel('Live now', color: colors.error),

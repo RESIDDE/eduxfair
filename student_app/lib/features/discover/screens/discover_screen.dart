@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/app_chrome.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/institution_avatar.dart';
@@ -408,7 +409,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         );
       }
       return ListView.builder(
-        padding: const EdgeInsets.only(bottom: 90),
+        padding: EdgeInsets.only(bottom: AppChrome.navClearance(context)),
         itemCount: posts.length,
         itemBuilder: (_, i) => PostCard(
           post: posts[i],
@@ -444,7 +445,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     return RefreshIndicator(
       onRefresh: () => feed.load(defaultTab, refresh: true),
       child: ListView.builder(
-        padding: const EdgeInsets.only(bottom: 90),
+        padding: EdgeInsets.only(bottom: AppChrome.navClearance(context)),
         itemCount: posts.length + 1,
         itemBuilder: (ctx, i) {
           if (i == 0) {
@@ -507,7 +508,8 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     return RefreshIndicator(
       onRefresh: provider.load,
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 90),
+        padding: EdgeInsets.fromLTRB(
+            20, 0, 20, AppChrome.navClearance(context)),
         itemCount: provider.institutions.length,
         itemBuilder: (_, i) {
           final institution = provider.institutions[i];
@@ -560,7 +562,8 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       onRefresh: provider.load,
       child: ListView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 90),
+        padding: EdgeInsets.fromLTRB(
+            20, 0, 20, AppChrome.navClearance(context)),
         itemCount:
             provider.programs.length + (provider.loadingMore ? 1 : 0),
         itemBuilder: (context, index) {

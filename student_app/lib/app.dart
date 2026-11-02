@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_provider.dart';
 import 'features/applications/screens/application_detail_screen.dart';
 import 'features/applications/screens/applications_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
@@ -92,12 +94,29 @@ class _EduxfairAppState extends State<EduxfairApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      // Black by default, which is the look this product is being measured
-      // against. The light palette is still X's own and still correct, so
-      // this is one word away from following the system again
-      // (ThemeMode.system) if form-filling in daylight wins the argument.
-      themeMode: ThemeMode.dark,
+      // The phone decides, unless the student has said otherwise in Settings.
+      themeMode: context.watch<ThemeProvider>().mode,
       routerConfig: _router,
+      // The status bar is drawn by the platform, which cannot see the theme.
+      // Without this its glyphs stay one fixed colour and go unreadable in
+      // whichever mode does not happen to suit them. `statusBarBrightness` is
+      // iOS and describes the *background* behind the glyphs, which is why it
+      // reads inverted next to the Android key.
+      builder: (context, child) {
+        final dark = Theme.of(context).brightness == Brightness.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+            statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+            systemNavigationBarColor:
+                Theme.of(context).scaffoldBackgroundColor,
+            systemNavigationBarIconBrightness:
+                dark ? Brightness.light : Brightness.dark,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

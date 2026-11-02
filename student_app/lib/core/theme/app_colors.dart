@@ -5,8 +5,7 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
   final Color accent;
 
   /// What sits *on* an [accent] surface — text, icons, a spinner inside a
-  /// filled button. The accent inverts between themes (black on light, white
-  /// on dark), so nothing may hardcode white over it.
+  /// filled button. Kept as its own token so nothing hardcodes white over it.
   final Color onAccent;
 
   /// A light foreground for use on a dark surface — the completeness bar over
@@ -29,9 +28,28 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
   final Color infoLight;
   final Color border;
   final Color divider;
+
+  /// The colour a floating surface casts.
+  ///
+  /// Every shadow in this app used to be a literal `Colors.black` at some
+  /// alpha, which is the whole design on a white canvas and completely
+  /// invisible on a black one. The glass nav bar floats over *content* rather
+  /// than over the canvas, so it needs a shadow in both themes — a heavier one
+  /// in dark, where it has to read against a bright photo.
+  final Color shadow;
+
   final LinearGradient primaryGradient;
   final LinearGradient accentGradient;
   final LinearGradient heroGradient;
+
+  /// Instagram's five-stop brand ramp.
+  ///
+  /// Identical in both themes, because it is an **accent** and never a
+  /// surface: it appears on the active tab glyph, unread badges, avatar rings
+  /// and the sign-in hero, and nowhere that text has to sit on top of it.
+  /// Several of its stops fail contrast against both canvases, which is
+  /// exactly why it is not allowed to become a background.
+  final LinearGradient brandGradient;
 
   const AppThemeColors({
     required this.primary,
@@ -55,9 +73,11 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
     required this.infoLight,
     required this.border,
     required this.divider,
+    required this.shadow,
     required this.primaryGradient,
     required this.accentGradient,
     required this.heroGradient,
+    required this.brandGradient,
   });
 
   @override
@@ -83,9 +103,11 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
     Color? infoLight,
     Color? border,
     Color? divider,
+    Color? shadow,
     LinearGradient? primaryGradient,
     LinearGradient? accentGradient,
     LinearGradient? heroGradient,
+    LinearGradient? brandGradient,
   }) {
     return AppThemeColors(
       primary: primary ?? this.primary,
@@ -109,9 +131,11 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
       infoLight: infoLight ?? this.infoLight,
       border: border ?? this.border,
       divider: divider ?? this.divider,
+      shadow: shadow ?? this.shadow,
       primaryGradient: primaryGradient ?? this.primaryGradient,
       accentGradient: accentGradient ?? this.accentGradient,
       heroGradient: heroGradient ?? this.heroGradient,
+      brandGradient: brandGradient ?? this.brandGradient,
     );
   }
 
@@ -142,106 +166,130 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
       infoLight: Color.lerp(infoLight, other.infoLight, t)!,
       border: Color.lerp(border, other.border, t)!,
       divider: Color.lerp(divider, other.divider, t)!,
+      shadow: Color.lerp(shadow, other.shadow, t)!,
       primaryGradient: primaryGradient, // Not interpolating gradients for simplicity
       accentGradient: accentGradient,
       heroGradient: heroGradient,
+      brandGradient: brandGradient, // identical in both themes anyway
     );
   }
 
+  /// Instagram's brand ramp, shared by both themes.
+  ///
+  /// Bottom-left to top-right is the orientation the glyph mark uses: yellow
+  /// in the warm corner, indigo in the cool one.
+  static const _brandGradient = LinearGradient(
+    begin: Alignment.bottomLeft,
+    end: Alignment.topRight,
+    colors: [
+      Color(0xFFFEDA75), // yellow
+      Color(0xFFFA7E1E), // orange
+      Color(0xFFD62976), // magenta
+      Color(0xFF962FBF), // purple
+      Color(0xFF4F5BD5), // indigo
+    ],
+  );
+
   // Pre-defined static themes
 
-  /// Light theme — the default. Students spend most of their time in this app
-  /// reading requirements and filling in a passport, often outdoors on a phone
-  /// in strong daylight, so light is the right default here.
+  /// Light theme — Instagram's white canvas.
   ///
-  /// Black is the action colour, as on X: a black button, a black tab
-  /// indicator, a black compose button. Verification keeps its own green and
-  /// deadlines their own amber, so a badge never competes with a button for
-  /// meaning. Neutrals are true greys rather than blue-tinted, or the black
-  /// reads as "very dark navy".
+  /// Blue `#0095F6` is the action colour in both themes: a filled button, a
+  /// link, a Follow. The brand gradient is deliberately *not* the action
+  /// colour — it decorates, and a control whose label has to stay legible
+  /// cannot sit on a five-stop ramp.
+  ///
+  /// `textLight` is the one place this knowingly departs from Instagram.
+  /// Theirs is `#8E8E8E`, which is 2.9:1 on white and fails WCAG AA for the
+  /// small text it carries here (`@handle · 2h`). `#6B6B6B` is 4.8:1 and
+  /// reads as the same grey.
   static const AppThemeColors light = AppThemeColors(
-    primary: Color(0xFF0F1419), // Near-black — headers, hero surfaces
-    accent: Color(0xFF1D9BF0), // X's blue. Every action, both themes.
+    primary: Color(0xFF000000),
+    accent: Color(0xFF0095F6), // Instagram blue. Every action, both themes.
     onAccent: Color(0xFFFFFFFF),
-    accentLight: Color(0xFFD6EBFB),
-    background: Color(0xFFF7F9F9),
+    accentLight: Color(0xFFB2DFFC),
+    background: Color(0xFFFFFFFF),
     surface: Color(0xFFFFFFFF),
-    surfaceVariant: Color(0xFFF2F4F5),
-    textPrimary: Color(0xFF0F1419),
-    textSecondary: Color(0xFF536471),
-    textLight: Color(0xFF5F6D79), // 5.0:1 on the canvas — it carries '@handle · 2h'
+    surfaceVariant: Color(0xFFEFEFEF), // Instagram's field and chip fill
+    textPrimary: Color(0xFF000000),
+    textSecondary: Color(0xFF737373),
+    textLight: Color(0xFF6B6B6B), // 4.8:1 — it carries '@handle · 2h'
     textOnDark: Color(0xFFFFFFFF),
     success: Color(0xFF0E9F6E), // Reserved for verified / approved
     successLight: Color(0xFFDEF7EC),
     warning: Color(0xFFF59E0B), // Scholarships, deadlines
     warningLight: Color(0xFFFEF3C7),
-    error: Color(0xFFE02424),
-    errorLight: Color(0xFFFDE8E8),
-    info: Color(0xFF1D9BF0),
-    infoLight: Color(0xFFE8F5FD),
-    border: Color(0xFFE1E8ED),
-    divider: Color(0xFFEFF3F4),
+    error: Color(0xFFED4956), // Instagram's like-red, and its error red
+    errorLight: Color(0xFFFDECEE),
+    info: Color(0xFF0095F6),
+    infoLight: Color(0xFFE7F3FF),
+    border: Color(0xFFDBDBDB),
+    divider: Color(0xFFEFEFEF), // the lighter of the two weights
+    shadow: Color(0x1F000000), // 12% — what a floating capsule casts on white
     primaryGradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF0F1419), Color(0xFF2F3336)],
+      colors: [Color(0xFF000000), Color(0xFF262626)],
     ),
     accentGradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF1D9BF0), Color(0xFF1A8CD8)],
+      colors: [Color(0xFF0095F6), Color(0xFF0081DB)],
     ),
     heroGradient: LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: [Colors.transparent, Color(0xE60F1419)],
+      colors: [Colors.transparent, Color(0xE6000000)],
     ),
+    brandGradient: _brandGradient,
   );
 
-  /// Dark theme — follows the system setting. True black, X's "lights out".
+  /// Dark theme — Instagram's black canvas.
   ///
-  /// The accent does NOT invert. X's blue is the action colour in both
-  /// themes — the compose button, a link, a selected tab — and it carries
-  /// enough contrast on #000000 and on #FFFFFF alike. Only the canvas flips.
-  /// Surfaces step up off black (#16181C, #202327) so a card still reads as a
-  /// raised panel and document thumbnails keep their edges.
+  /// The accent does not invert: `#0095F6` carries enough contrast on
+  /// `#000000` and `#FFFFFF` alike. Surfaces step up off black (`#121212`,
+  /// `#262626`) so a card still reads as a raised panel.
   static const AppThemeColors dark = AppThemeColors(
-    primary: Color(0xFF16181C),
-    accent: Color(0xFF1D9BF0), // X's blue, the same in both themes
+    primary: Color(0xFF121212),
+    accent: Color(0xFF0095F6), // Instagram blue, the same in both themes
     onAccent: Color(0xFFFFFFFF),
     accentLight: Color(0xFF8ECDF8),
     background: Color(0xFF000000),
-    surface: Color(0xFF16181C),
-    surfaceVariant: Color(0xFF202327),
-    textPrimary: Color(0xFFE7E9EA),
-    textSecondary: Color(0xFF71767B), // X's one secondary grey
-    textLight: Color(0xFF71767B),
+    surface: Color(0xFF121212),
+    surfaceVariant: Color(0xFF262626),
+    textPrimary: Color(0xFFFFFFFF),
+    textSecondary: Color(0xFFA8A8A8),
+    textLight: Color(0xFF8E8E8E), // 6.5:1 on black — fine as Instagram ships it
     textOnDark: Color(0xFFFFFFFF),
     success: Color(0xFF34D399),
     successLight: Color(0xFF0C2B22),
     warning: Color(0xFFFBBF24),
     warningLight: Color(0xFF2E2410),
-    error: Color(0xFFF87171),
+    error: Color(0xFFED4956),
     errorLight: Color(0xFF2E1313),
-    info: Color(0xFF1D9BF0),
+    info: Color(0xFF0095F6),
     infoLight: Color(0xFF0B2638),
-    border: Color(0xFF2F3336),
-    divider: Color(0xFF2F3336), // X draws one hairline, not two weights
+    border: Color(0xFF363636),
+    divider: Color(0xFF262626),
+    // Heavier than light's: in dark the capsule's job is to read against a
+    // bright photo, not against the canvas it is invisible on.
+    shadow: Color(0x4D000000),
     primaryGradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF202327), Color(0xFF16181C)],
+      colors: [Color(0xFF262626), Color(0xFF121212)],
     ),
     accentGradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF1D9BF0), Color(0xFF1A8CD8)],
+      colors: [Color(0xFF0095F6), Color(0xFF0081DB)],
     ),
     heroGradient: LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [Colors.transparent, Color(0xFF000000)],
     ),
+    brandGradient: _brandGradient,
   );
 }
 

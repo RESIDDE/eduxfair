@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/app_chrome.dart';
 import '../../../core/supabase/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -346,8 +347,8 @@ class _FeedListState extends State<_FeedList>
         child: ListView(
           controller: _controller,
           padding: EdgeInsets.only(
-            top: MediaQuery.paddingOf(context).top + 96,
-            bottom: 100,
+            top: MediaQuery.paddingOf(context).top + 8,
+            bottom: AppChrome.navClearance(context),
           ),
           children: [
             ...pinned,
@@ -376,9 +377,14 @@ class _FeedListState extends State<_FeedList>
         controller: _controller,
         // Room for the floating bar at the bottom and the glass bar at the
         // top, now that content runs behind both.
+        // Scaffold already publishes both insets through MediaQuery:
+        // `extendBodyBehindAppBar` puts the full app-bar height into
+        // padding.top, and MainShell's `extendBody` puts the nav bar's
+        // measured height into padding.bottom. Adding 96 to the former was
+        // counting the app bar twice.
         padding: EdgeInsets.only(
-          top: MediaQuery.paddingOf(context).top + 96,
-          bottom: 100,
+          top: MediaQuery.paddingOf(context).top + 8,
+          bottom: AppChrome.navClearance(context),
         ),
         itemCount: posts.length + pinned.length + 1,
         itemBuilder: (context, index) {

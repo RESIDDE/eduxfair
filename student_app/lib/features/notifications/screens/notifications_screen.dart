@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/constants/app_chrome.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../models/app_notification.dart';
@@ -65,7 +66,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               : RefreshIndicator(
                   onRefresh: provider.load,
                   child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    // 8pt all round left the last notification sitting under the
+                    // floating nav bar.
+                    padding: EdgeInsets.only(
+                        top: 8, bottom: AppChrome.navClearance(context, gap: 8)),
                     itemCount: provider.notifications.length,
                     separatorBuilder: (_, __) =>
                         Divider(height: 1, color: colors.divider, indent: 68),

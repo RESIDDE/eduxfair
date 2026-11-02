@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/app_chrome.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/institution_avatar.dart';
@@ -222,7 +223,7 @@ class _ThreadList extends StatelessWidget {
       onRefresh: provider.loadConversations,
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 24),
+        padding: EdgeInsets.only(bottom: AppChrome.navClearance(context)),
         itemCount: rows.length,
         separatorBuilder: (_, __) =>
             Divider(height: 1, color: colors.divider, indent: 76),
