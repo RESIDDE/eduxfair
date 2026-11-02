@@ -67,17 +67,19 @@ void main() {
     expect(mediaBox(tester).width, _screen.width);
   });
 
-  testWidgets('media is boxed at 16:9, not at the image\'s own ratio',
+  testWidgets('media is boxed at 4:5, not at the image\'s own ratio',
       (tester) async {
     await pumpCard(tester, 1);
     final box = mediaBox(tester);
-    expect(box.width / box.height, closeTo(16 / 9, 0.01));
+    expect(box.width / box.height, closeTo(4 / 5, 0.01));
   });
 
-  testWidgets('and so takes well under half the screen, so the next post '
-      'still peeks at the bottom edge', (tester) async {
+  testWidgets('the height cap sits above 4:5 so it never crops the ratio back '
+      'off on a phone', (tester) async {
     await pumpCard(tester, 1);
-    expect(mediaBox(tester).height, lessThan(_screen.height * 0.45));
+    final box = mediaBox(tester);
+    expect(box.height, closeTo(_screen.width * 5 / 4, 1.0),
+        reason: 'a cap below this would silently letterbox the crop');
   });
 
   group('the mosaic', () {

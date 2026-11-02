@@ -7,6 +7,9 @@ import '../../../core/widgets/app_back_button.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/custom_text_field.dart';
+import '../../../core/widgets/gradient_border.dart';
+import '../../../core/widgets/material_surface.dart';
+import '../widgets/auth_scaffold.dart';
 import '../providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -73,27 +76,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final text = Theme.of(context).textTheme;
     final busy = context.watch<AuthProvider>().busy;
 
-    return Scaffold(
-      appBar: AppBar(leading: AppBackButton(fallback: AppConstants.routeSignup)),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
+    return AuthScaffold(
+      leading: const AppBackButton(fallback: AppConstants.routeSignup),
+      title: 'Create your passport',
+      subtitle:
+          'Free, and it takes a few minutes. You decide which '
+          'institutions ever see it.',
+      footer: AuthFooterLink(
+        question: 'Already registered?',
+        action: 'Sign in',
+        onTap: busy ? null : () => context.go(AppConstants.routeLogin),
+      ),
+      children: [
+        GradientBorder(
+          radius: 20,
+          child: MaterialSurface(
+            borderRadius: BorderRadius.circular(18.5),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Create your passport', style: text.displaySmall),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Free, and it takes a few minutes. You decide which '
-                      'institutions ever see it.',
-                      style: text.bodyMedium,
-                    ),
-                    const SizedBox(height: 28),
                     CustomTextField(
                       controller: _name,
                       label: 'Full name',
@@ -123,10 +128,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         prefixIcon: Icon(Icons.public_rounded, size: 20),
                       ),
                       items: AppConstants.homeCountries.entries
-                          .map((e) => DropdownMenuItem(
-                                value: e.key,
-                                child: Text(e.value),
-                              ))
+                          .map(
+                            (e) => DropdownMenuItem(
+                              value: e.key,
+                              child: Text(e.value),
+                            ),
+                          )
                           .toList(),
                       onChanged: (v) => setState(() => _country = v),
                       validator: (v) =>
@@ -191,26 +198,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             )
                           : const Text('Create account'),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('Already registered?', style: text.bodyMedium),
-                        TextButton(
-                          onPressed: busy
-                              ? null
-                              : () => context.go(AppConstants.routeLogin),
-                          child: const Text('Sign in'),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

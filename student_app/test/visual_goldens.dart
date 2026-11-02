@@ -32,9 +32,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lekkside_connect/core/theme/app_theme.dart';
 import 'package:lekkside_connect/core/widgets/custom_button.dart';
 import 'package:lekkside_connect/core/widgets/material_surface.dart';
+import 'package:lekkside_connect/core/widgets/social_icons.dart';
 import 'package:provider/provider.dart';
 
 import 'package:lekkside_connect/features/auth/providers/auth_provider.dart';
+import 'package:lekkside_connect/features/auth/screens/account_type_screen.dart';
 import 'package:lekkside_connect/features/auth/screens/login_screen.dart';
 import 'package:lekkside_connect/core/theme/theme_provider.dart';
 import 'package:lekkside_connect/features/discover/models/institution.dart';
@@ -291,6 +293,54 @@ void main() {
     });
   }
 
+  testWidgets('post glyphs — outline and filled, large', (tester) async {
+    await shoot(
+      tester,
+      'social_icons',
+      Builder(builder: (context) {
+        final colour = Theme.of(context).textTheme.bodyLarge!.color!;
+        Widget row(double size, bool filled) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  for (final g in SocialGlyph.values)
+                    SocialIcon(g,
+                        size: size,
+                        color: colour,
+                        filled: filled &&
+                            (g == SocialGlyph.heart ||
+                                g == SocialGlyph.bookmark)),
+                ],
+              ),
+            );
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [row(48, false), row(48, true), row(22, false)],
+          ),
+        );
+      }),
+      theme: AppTheme.lightTheme,
+      size: const Size(390, 260),
+    );
+  });
+
+  for (final name in ['light', 'dark']) {
+    testWidgets('choose an account type — $name', (tester) async {
+      final theme =
+          name == 'light' ? AppTheme.lightTheme : AppTheme.darkTheme;
+      await shoot(
+        tester,
+        'account_type_$name',
+        const AccountTypeScreen(),
+        theme: theme,
+        size: const Size(390, 1000),
+      );
+    });
+  }
+
   testWidgets('post card — light', (tester) async {
     await shoot(tester, 'post_card_light', PostCard(post: fixture()),
         theme: AppTheme.lightTheme, size: const Size(390, 330));
@@ -348,7 +398,7 @@ void main() {
       'post_card_media_one',
       PostCard(post: fixture(mediaCount: 1, liked: true)),
       theme: AppTheme.lightTheme,
-      size: const Size(390, 420),
+      size: const Size(390, 720),
     );
   });
 
@@ -358,7 +408,7 @@ void main() {
       'post_card_media_three',
       PostCard(post: fixture(mediaCount: 3)),
       theme: AppTheme.darkTheme,
-      size: const Size(390, 420),
+      size: const Size(390, 720),
     );
   });
 

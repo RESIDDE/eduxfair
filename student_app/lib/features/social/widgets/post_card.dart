@@ -20,11 +20,9 @@ import 'post_actions.dart';
 /// old X-style layout the picture only ever got about 308 of a 390pt phone's
 /// width.
 ///
-/// Media is boxed at **16:9** rather than at the image's own ratio. Instagram
-/// runs 4:5 portrait and taller, which gives one post per screen; 16:9 keeps
-/// the next post peeking at the bottom edge, so the feed still reads as a
-/// feed. Used by every feed, the profile and the detail screen, so the anatomy
-/// is defined once.
+/// Media is boxed at **4:5** rather than at the image's own ratio — the
+/// reference's portrait crop. Used by every feed, the profile and the detail
+/// screen, so the anatomy is defined once.
 class PostCard extends StatelessWidget {
   final Post post;
   final VoidCallback? onTap;
@@ -322,13 +320,15 @@ class _Media extends StatelessWidget {
     final shown = media.take(4).toList();
 
     return ConstrainedBox(
-      // On a phone 16:9 of a full-bleed card is about a quarter of the screen,
-      // so this never binds there — it is for web and tablet widths, where
-      // 16:9 of a 900pt column would otherwise be half the window.
+      // 4:5 of a full-bleed card is about 58% of a phone screen, so the cap
+      // has to sit above that or it would crop the ratio back off. It is here
+      // for web and tablet widths, where 4:5 of a 900pt column would be twice
+      // the height of the window.
       constraints:
-          BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.45),
+          BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.68),
       child: AspectRatio(
-        aspectRatio: 16 / 9,
+        // Instagram's portrait crop.
+        aspectRatio: 4 / 5,
         child: switch (shown.length) {
           1 => tile(shown.first),
           // Two across, each a tall half.

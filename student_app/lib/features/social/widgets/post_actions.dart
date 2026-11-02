@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/motion.dart';
 import '../../../core/widgets/pressable.dart';
+import '../../../core/widgets/social_icons.dart';
 import '../models/post.dart';
 
 /// The row under every post: like, reply, repost and share together on the
@@ -46,9 +47,7 @@ class PostActions extends StatelessWidget {
           // saving — which acts on *your* account rather than on the post — is
           // pushed to the far right.
           _Action(
-            icon: post.liked
-                ? Icons.favorite_rounded
-                : Icons.favorite_border_rounded,
+            glyph: SocialGlyph.heart,
             count: counted.likeCount,
             active: post.liked,
             activeColor: colors.error,
@@ -56,13 +55,13 @@ class PostActions extends StatelessWidget {
             onTap: onLike == null ? null : () => onLike!(post),
           ),
           _Action(
-            icon: Icons.mode_comment_outlined,
+            glyph: SocialGlyph.comment,
             count: counted.commentCount,
             tooltip: 'Reply',
             onTap: onReply == null ? null : () => onReply!(post),
           ),
           _Action(
-            icon: Icons.repeat_rounded,
+            glyph: SocialGlyph.reshare,
             count: counted.repostCount,
             active: post.repostedByMe,
             activeColor: colors.success,
@@ -70,15 +69,13 @@ class PostActions extends StatelessWidget {
             onTap: onRepost == null ? null : () => onRepost!(post),
           ),
           _Action(
-            icon: Icons.send_outlined,
+            glyph: SocialGlyph.send,
             tooltip: 'Share',
             onTap: onShare == null ? null : () => onShare!(post),
           ),
           const Spacer(),
           _Action(
-            icon: post.bookmarked
-                ? Icons.bookmark_rounded
-                : Icons.bookmark_border_rounded,
+            glyph: SocialGlyph.bookmark,
             active: post.bookmarked,
             activeColor: colors.accent,
             tooltip: post.bookmarked ? 'Saved' : 'Save',
@@ -91,7 +88,7 @@ class PostActions extends StatelessWidget {
 }
 
 class _Action extends StatefulWidget {
-  final IconData icon;
+  final SocialGlyph glyph;
   final int? count;
   final bool active;
   final Color? activeColor;
@@ -99,7 +96,7 @@ class _Action extends StatefulWidget {
   final VoidCallback? onTap;
 
   const _Action({
-    required this.icon,
+    required this.glyph,
     this.count,
     this.active = false,
     this.activeColor,
@@ -175,8 +172,19 @@ class _ActionState extends State<_Action>
                 duration: reduceMotion(context)
                     ? Duration.zero
                     : const Duration(milliseconds: 180),
-                builder: (_, value, __) =>
-                    Icon(widget.icon, size: 17, color: value ?? colour),
+                builder: (_, value, __) => SocialIcon(
+                  widget.glyph,
+                  // Larger than the 17pt Material glyph it replaces: a
+                  // thin-stroked outline needs the room to read as a shape
+                  // rather than as a smudge.
+                  size: 23,
+                  color: value ?? colour,
+                  // Only these two have an on-state. Resharing and sending
+                  // are things you did, not states you are in.
+                  filled: widget.active &&
+                      (widget.glyph == SocialGlyph.heart ||
+                          widget.glyph == SocialGlyph.bookmark),
+                ),
               ),
             ),
             if (widget.count != null && widget.count! > 0) ...[

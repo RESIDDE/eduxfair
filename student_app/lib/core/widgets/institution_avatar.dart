@@ -8,6 +8,11 @@ import '../theme/app_colors.dart';
 /// Many listings will have no logo for a long while — institutions upload one
 /// when they get round to it — so the fallback has to look deliberate rather
 /// than broken.
+///
+/// Circular, like [UserAvatar]. This used to be a rounded square to set an
+/// institution apart from a person, but the post card draws every author with
+/// it regardless of kind, so the distinction only ever showed up as two
+/// different avatar shapes in one feed.
 class InstitutionAvatar extends StatelessWidget {
   final String? logoUrl;
   final String initials;
@@ -27,7 +32,7 @@ class InstitutionAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final radius = size * 0.28;
+    final radius = size / 2;
 
     final fallback = Container(
       width: size,
