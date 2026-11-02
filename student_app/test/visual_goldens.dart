@@ -83,6 +83,8 @@ Post fixture({
   bool verified = true,
   int likes = 128,
   int mediaCount = 0,
+  int? mediaWidth = 1600,
+  int? mediaHeight = 900,
 }) =>
     Post(
       id: 'p1',
@@ -104,7 +106,10 @@ Post fixture({
       // the 16:9 crop and the full-bleed edges — not the photograph.
       media: [
         for (var i = 0; i < mediaCount; i++)
-          PostMedia(storagePath: 'demo/$i.jpg', width: 1600, height: 900),
+          PostMedia(
+              storagePath: 'demo/$i.jpg',
+              width: mediaWidth,
+              height: mediaHeight),
       ],
       topics: const [
         PostTopic(kind: 'field', value: 'computer-science'),
@@ -396,9 +401,14 @@ void main() {
     await shoot(
       tester,
       'post_card_media_one',
-      PostCard(post: fixture(mediaCount: 1, liked: true)),
+      PostCard(
+          post: fixture(
+              mediaCount: 1,
+              liked: true,
+              mediaWidth: 1080,
+              mediaHeight: 1350)),
       theme: AppTheme.lightTheme,
-      size: const Size(390, 720),
+      size: const Size(390, 780),
     );
   });
 

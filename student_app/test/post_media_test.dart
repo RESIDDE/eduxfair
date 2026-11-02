@@ -15,7 +15,7 @@ import 'package:lekkside_connect/core/theme/app_theme.dart';
 import 'package:lekkside_connect/features/social/models/post.dart';
 import 'package:lekkside_connect/features/social/widgets/post_card.dart';
 
-Post withMedia(int count) => Post(
+Post withMedia(int count, {int? w = 1600, int? h = 900}) => Post(
       id: 'p1',
       body: 'A caption.',
       createdAt: DateTime.now(),
@@ -24,13 +24,18 @@ Post withMedia(int count) => Post(
       authorKind: 'institution',
       media: [
         for (var i = 0; i < count; i++)
-          PostMedia(storagePath: 'demo/$i.jpg', width: 1600, height: 900),
+          PostMedia(storagePath: 'demo/$i.jpg', width: w, height: h),
       ],
     );
 
 const _screen = Size(390, 844);
 
-Future<void> pumpCard(WidgetTester tester, int mediaCount) async {
+Future<void> pumpCard(
+  WidgetTester tester,
+  int mediaCount, {
+  int? w = 1600,
+  int? h = 900,
+}) async {
   tester.view.physicalSize = _screen * 3;
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
@@ -38,7 +43,9 @@ Future<void> pumpCard(WidgetTester tester, int mediaCount) async {
   await tester.pumpWidget(MaterialApp(
     theme: AppTheme.lightTheme,
     home: Scaffold(
-      body: ListView(children: [PostCard(post: withMedia(mediaCount))]),
+      body: ListView(
+        children: [PostCard(post: withMedia(mediaCount, w: w, h: h))],
+      ),
     ),
   ));
   await tester.pump();
@@ -67,19 +74,53 @@ void main() {
     expect(mediaBox(tester).width, _screen.width);
   });
 
-  testWidgets('media is boxed at 4:5, not at the image\'s own ratio',
-      (tester) async {
-    await pumpCard(tester, 1);
-    final box = mediaBox(tester);
-    expect(box.width / box.height, closeTo(4 / 5, 0.01));
-  });
+  group('nothing is cut', () {
+    testWidgets('the box takes the picture\'s own shape, so there is nothing '
+        'to crop', (tester) async {
+      await pumpCard(tester, 1, w: 1600, h: 900);
+      final box = mediaBox(tester);
+      expect(box.width / box.height, closeTo(1600 / 900, 0.01));
+    });
 
-  testWidgets('the height cap sits above 4:5 so it never crops the ratio back '
-      'off on a phone', (tester) async {
-    await pumpCard(tester, 1);
-    final box = mediaBox(tester);
-    expect(box.height, closeTo(_screen.width * 5 / 4, 1.0),
-        reason: 'a cap below this would silently letterbox the crop');
+    testWidgets('a portrait poster gets a portrait box', (tester) async {
+      await pumpCard(tester, 1, w: 1080, h: 1350);
+      final box = mediaBox(tester);
+      expect(box.width / box.height, closeTo(1080 / 1350, 0.01));
+    });
+
+    testWidgets('the picture is contained, never cropped — this is the bit '
+        'that was cutting the edges off flyers', (tester) async {
+      await pumpCard(tester, 1, w: 1080, h: 1350);
+      final fits = tester
+          .widgetList<CachedNetworkImage>(find.byType(CachedNetworkImage))
+          .map((i) => i.fit)
+          .toList();
+      expect(fits, contains(BoxFit.contain));
+    });
+
+    testWidgets('a very tall picture is letterboxed rather than cropped — and '
+        'the letterbox is a blurred copy, not a grey bar', (tester) async {
+      await pumpCard(tester, 1, w: 600, h: 1600);
+      final box = mediaBox(tester);
+      // Clamped, so one post cannot eat the whole viewport...
+      expect(box.width / box.height, closeTo(0.68, 0.01));
+      // ...but still contained, so the whole poster is visible.
+      final images = tester
+          .widgetList<CachedNetworkImage>(find.byType(CachedNetworkImage))
+          .toList();
+      expect(images.map((i) => i.fit), containsAll([
+        BoxFit.contain, // the picture
+        BoxFit.cover, // the blurred fill behind it
+      ]));
+      expect(find.byType(ImageFiltered), findsOneWidget);
+    });
+
+    testWidgets('and 4:5 is only the fallback, for posts uploaded before '
+        'dimensions were recorded', (tester) async {
+      await pumpCard(tester, 1, w: null, h: null);
+      final box = mediaBox(tester);
+      expect(box.width / box.height, closeTo(4 / 5, 0.01));
+    });
   });
 
   group('the mosaic', () {

@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -20,9 +22,10 @@ import 'post_actions.dart';
 /// old X-style layout the picture only ever got about 308 of a 390pt phone's
 /// width.
 ///
-/// Media is boxed at **4:5** rather than at the image's own ratio — the
-/// reference's portrait crop. Used by every feed, the profile and the detail
-/// screen, so the anatomy is defined once.
+/// A single picture is shown **whole** — the box takes the picture's own
+/// shape, so nothing is cropped, and 4:5 is the fallback until that shape is
+/// known. Used by every feed, the profile and the detail screen, so the
+/// anatomy is defined once.
 class PostCard extends StatelessWidget {
   final Post post;
   final VoidCallback? onTap;
@@ -302,6 +305,18 @@ class _Media extends StatelessWidget {
 
   const _Media({required this.media});
 
+  /// The house ratio, used until the real one is known.
+  static const fallbackRatio = 4 / 5;
+
+  /// How tall a single picture is allowed to get, as width ÷ height.
+  ///
+  /// 0.68 is about as tall as a phone allows before one post fills the whole
+  /// viewport and the feed stops reading as a feed. A picture taller than this
+  /// is letterboxed rather than cropped — bars are recoverable, a cut-off
+  /// poster is not.
+  static const minRatio = 0.68;
+  static const maxRatio = 1.91;
+
   @override
   Widget build(BuildContext context) {
     final service = SupabaseService.instance;
@@ -310,6 +325,15 @@ class _Media extends StatelessWidget {
           path: m.storagePath,
         );
 
+    final shown = media.take(4).toList();
+
+    if (shown.length == 1) {
+      return _FittedImage(url: url(shown.first), known: shown.first.ratio);
+    }
+
+    // A mosaic crops to its cells by necessity — that is what a grid is. The
+    // cells are near-square, so the loss is small, and the case this matters
+    // for is the single full-width picture above.
     Widget tile(PostMedia m) => CachedNetworkImage(
           imageUrl: url(m),
           fit: BoxFit.cover,
@@ -317,20 +341,12 @@ class _Media extends StatelessWidget {
               ColoredBox(color: context.colors.surfaceVariant),
         );
 
-    final shown = media.take(4).toList();
-
     return ConstrainedBox(
-      // 4:5 of a full-bleed card is about 58% of a phone screen, so the cap
-      // has to sit above that or it would crop the ratio back off. It is here
-      // for web and tablet widths, where 4:5 of a 900pt column would be twice
-      // the height of the window.
       constraints:
           BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.68),
       child: AspectRatio(
-        // Instagram's portrait crop.
-        aspectRatio: 4 / 5,
+        aspectRatio: fallbackRatio,
         child: switch (shown.length) {
-          1 => tile(shown.first),
           // Two across, each a tall half.
           2 => Row(children: [
               Expanded(child: tile(shown[0])),
@@ -368,6 +384,131 @@ class _Media extends StatelessWidget {
               ),
             ]),
         },
+      ),
+    );
+  }
+}
+
+/// A single picture, shown whole.
+///
+/// The box takes the picture's own shape so there is nothing to crop. Where
+/// the shape is unknown — every post made before the uploader started
+/// recording dimensions — it is read off the decoded image and the box
+/// settles onto it.
+///
+/// Whatever is left over after clamping is filled with a blurred, enlarged
+/// copy of the same picture rather than a flat grey bar, so a letterbox reads
+/// as part of the design. `BoxFit.contain` is what guarantees nothing is ever
+/// cut, even when the clamp bites.
+class _FittedImage extends StatefulWidget {
+  final String url;
+
+  /// From the stored width and height, when the post has them.
+  final double? known;
+
+  const _FittedImage({required this.url, this.known});
+
+  @override
+  State<_FittedImage> createState() => _FittedImageState();
+}
+
+class _FittedImageState extends State<_FittedImage> {
+  double? _resolved;
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.known == null) _resolve();
+  }
+
+  @override
+  void didUpdateWidget(_FittedImage old) {
+    super.didUpdateWidget(old);
+    if (old.url != widget.url) {
+      _stopListening();
+      _resolved = null;
+      if (widget.known == null) _resolve();
+    }
+  }
+
+  /// Ask the image itself how big it is.
+  ///
+  /// Resolving the provider separately does not cost a second download: the
+  /// provider compares equal to the one the image widget uses, so Flutter's
+  /// image cache hands back the same entry.
+  void _resolve() {
+    final provider = CachedNetworkImageProvider(widget.url);
+    _listener = ImageStreamListener(
+      (info, _) {
+        final ratio = info.image.width / info.image.height;
+        // Our handle on the frame, not the cache's — releasing it is correct
+        // and the widget below still gets its own.
+        info.dispose();
+        if (mounted && ratio.isFinite && ratio > 0) {
+          setState(() => _resolved = ratio);
+        }
+      },
+      // A picture that will not load falls back to the house ratio, which the
+      // error box below fills.
+      onError: (_, __) {},
+    );
+    _stream = provider.resolve(ImageConfiguration.empty)
+      ..addListener(_listener!);
+  }
+
+  void _stopListening() {
+    if (_stream != null && _listener != null) {
+      _stream!.removeListener(_listener!);
+    }
+    _stream = null;
+    _listener = null;
+  }
+
+  @override
+  void dispose() {
+    _stopListening();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final ratio = (widget.known ?? _resolved ?? _Media.fallbackRatio)
+        .clamp(_Media.minRatio, _Media.maxRatio);
+
+    Widget image(BoxFit fit) => CachedNetworkImage(
+          imageUrl: widget.url,
+          fit: fit,
+          errorWidget: (_, __, ___) =>
+              ColoredBox(color: colors.surfaceVariant),
+        );
+
+    return ConstrainedBox(
+      // Belt and braces for web and tablet widths, where even a clamped ratio
+      // can be taller than the window.
+      constraints:
+          BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.72),
+      child: AspectRatio(
+        aspectRatio: ratio,
+        child: ClipRect(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Only ever visible where the picture does not reach.
+              ImageFiltered(
+                imageFilter: ImageFilter.blur(
+                  sigmaX: 24,
+                  sigmaY: 24,
+                  tileMode: TileMode.clamp,
+                ),
+                child: image(BoxFit.cover),
+              ),
+              image(BoxFit.contain),
+            ],
+          ),
+        ),
       ),
     );
   }

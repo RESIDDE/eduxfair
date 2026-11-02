@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -485,11 +486,21 @@ class FeedProvider extends ChangeNotifier {
           contentType: item.mime,
         );
 
+        // `post_media` has had width and height columns since the social
+        // migration and nothing ever wrote them, so every post in the app
+        // reported an unknown aspect ratio and the card had to guess. Reading
+        // them off the encoded bytes costs one header parse and means the
+        // feed lays the picture out correctly on its first frame instead of
+        // reflowing once it decodes.
+        final size = await _imageSize(item.bytes);
+
         await _service.client.from('post_media').insert({
           'post_id': postId,
           'storage_path': path,
           'mime': item.mime,
           'ord': i,
+          if (size != null) 'width': size.$1,
+          if (size != null) 'height': size.$2,
         });
       }
 
@@ -623,5 +634,27 @@ class FeedProvider extends ChangeNotifier {
     if (_error == null) return;
     _error = null;
     notifyListeners();
+  }
+}
+
+/// The pixel dimensions of an encoded image, without fully decoding it.
+///
+/// `ImageDescriptor` reads the header only, which is all this needs, and works
+/// on web as well as the phones — `dart:io` is not available on all three
+/// targets and neither is anything that takes a file path.
+Future<(int, int)?> _imageSize(Uint8List bytes) async {
+  ui.ImmutableBuffer? buffer;
+  ui.ImageDescriptor? descriptor;
+  try {
+    buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+    descriptor = await ui.ImageDescriptor.encoded(buffer);
+    return (descriptor.width, descriptor.height);
+  } catch (_) {
+    // An unreadable header is not a reason to fail the post; the card falls
+    // back to resolving the ratio once the image loads.
+    return null;
+  } finally {
+    descriptor?.dispose();
+    buffer?.dispose();
   }
 }

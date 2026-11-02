@@ -199,6 +199,18 @@ class PostMedia {
     this.height,
   });
 
+  /// The picture's own shape, or null when it was uploaded before the
+  /// uploader started recording dimensions.
+  ///
+  /// Null is deliberately not papered over with a default: the card uses it to
+  /// decide whether to ask the decoded image for its size instead, and a
+  /// made-up ratio would silently crop.
+  double? get ratio {
+    final w = width, h = height;
+    if (w == null || h == null || w <= 0 || h <= 0) return null;
+    return w / h;
+  }
+
   factory PostMedia.fromMap(Map<String, dynamic> map) => PostMedia(
         storagePath: map['storage_path'] as String,
         altText: map['alt_text'] as String?,
