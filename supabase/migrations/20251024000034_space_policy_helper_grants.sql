@@ -1,0 +1,34 @@
+-- The three Live Spaces policy helpers were closed to anon, and should not be.
+--
+-- 20251024000032 ended with the blanket `revoke execute on all functions in
+-- schema public from anon` that 20251010000025 says every function-adding
+-- migration has to repeat. That is right for the write paths. It is wrong for
+-- the three helpers the policies themselves call.
+--
+-- 20251010000025 draws the line:
+--
+--     A function gets EXECUTE to PUBLIC when it is created, and the policy
+--     helpers leave that alone — so they stay callable during policy
+--     evaluation. Every privileged write path does `revoke all on function ...
+--     from public`, which closes it to anon once anon has no explicit grant.
+--
+-- `my_space_participant`, `my_speaking_participant` and
+-- `is_my_space_participant` got the write-path treatment by mistake. The
+-- consequence showed up against the hosted project rather than locally: an
+-- anonymous read of `space_messages` returned 401 (permission denied for the
+-- function, raised while evaluating the policy) instead of the clean empty 200
+-- every other table gives. Measured, not assumed — and the same divergence
+-- 20251010000025 exists to prevent, just in the other direction.
+--
+-- That is a harder refusal rather than a weaker one, so nothing was exposed.
+-- But it is still the wrong shape: `describeError` maps 42501 to "You do not
+-- have access to that", so a signed-out client would show an error where it
+-- should show an empty list.
+--
+-- Safe to hand back to PUBLIC, for the reason the others are: all three are
+-- `stable`, read nothing but their own caller's rows, and open with
+-- `auth.uid() is not null`, so with no session they return null or false. The
+-- write paths keep their revoke.
+grant execute on function my_space_participant(uuid)    to public;
+grant execute on function my_speaking_participant(uuid) to public;
+grant execute on function is_my_space_participant(uuid) to public;

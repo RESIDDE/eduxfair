@@ -1,0 +1,14 @@
+{
+  "name": "lekkside-schema-tests",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Runs the Lekkside Connect migrations and RLS assertions on an in-process Postgres (PGlite), so the schema can be verified without Docker or a hosted project.",
+  "scripts": {
+    "test": "node run.mjs",
+    "test:schema": "node run.mjs --schema-only"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.3.14"
+  }
+}

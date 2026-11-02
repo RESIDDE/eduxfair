@@ -1,0 +1,18 @@
+{
+  "name": "lekkside",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lekkside Connect Root Workspace",
+  "scripts": {
+    "dev": "cd web && npm run dev",
+    "web": "cd web && npm run dev",
+    "web:build": "cd web && npm run build",
+    "student:chrome": "cd student_app && flutter run -d chrome",
+    "student:macos": "cd student_app && flutter run -d macos",
+    "student:ios": "cd student_app && flutter run -d ios",
+    "test:schema": "cd supabase/tests && npm run test:schema",
+    "test:rls": "cd supabase/tests && npm test",
+    "test:protocol": "cd devserver && npm run verify:protocol",
+    "test:tracks": "cd devserver && node verify-track-targets.mjs"
+  }
+}

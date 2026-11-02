@@ -1,0 +1,78 @@
+name: lekkside_connect
+description: "Lekkside Connect — your Education Passport, one profile for every institution."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management & navigation — same choices as consult_client, so the two
+  # codebases stay navigable by the same people.
+  provider: ^6.1.2
+  go_router: ^14.6.1
+
+  # Backend
+  supabase_flutter: ^2.8.3
+
+  # Config
+  flutter_dotenv: ^5.2.1
+
+  # UI & typography
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.0
+  smooth_page_indicator: ^1.2.0
+  percent_indicator: ^4.2.3
+  timeline_tile: ^2.0.0
+  cached_network_image: ^3.4.1
+  pinput: ^3.0.1
+
+  # Fair Passport
+  qr_flutter: ^4.1.0
+
+  # Documents & media
+  file_picker: ^8.1.2
+  image_picker: ^1.1.2
+
+  # Voice notes. `record` captures to a file the platform can actually encode —
+  # AAC in an m4a on the phones, opus in a webm in a browser — and just_audio
+  # plays one back with a position stream, which a scrub bar needs and a plain
+  # play/stop API cannot give.
+  record: ^7.1.2
+  just_audio: ^0.9.42
+  # `record` writes to a path the caller supplies, so somewhere to put it.
+  path_provider: ^2.1.4
+
+  # Utilities
+  shared_preferences: ^2.3.2
+  intl: ^0.20.2
+  url_launcher: ^6.3.0
+
+  # In-app video for Live Spaces and 1:1 appointments. The native SDK rather
+  # than a WebView: a WebView cannot hold a call while the app is backgrounded,
+  # cannot reach the platform's echo canceller, and cannot be made to look like
+  # the rest of the app.
+  livekit_client: ^2.13.1
+
+  # Camera and microphone are asked for before a two-hundred-person room, not
+  # during it — and openAppSettings() is the only way back from a permanent
+  # denial.
+  permission_handler: ^11.3.1
+
+  # A call screen that lets the phone sleep is a bug.
+  wakelock_plus: ^1.2.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+    - assets/images/

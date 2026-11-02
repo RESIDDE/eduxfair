@@ -1,0 +1,23 @@
+{
+  "name": "lekkside-devserver",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A local stand-in for Supabase: speaks the REST, auth, storage and realtime protocols against the real migrations running on PGlite. Lets both apps run with nothing to sign up for.",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "empty": "node server.mjs --empty",
+    "smoke": "node smoke.mjs",
+    "verify:console": "node verify-console-queries.mjs",
+    "verify": "node smoke.mjs && node verify-console-queries.mjs && node verify-room-protocol.mjs && node bundle-migrations.mjs",
+    "bundle": "node bundle-migrations.mjs",
+    "verify:protocol": "node verify-room-protocol.mjs",
+    "verify:tracks": "node verify-track-targets.mjs"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.3.14",
+    "livekit-server-sdk": "^2.19.2",
+    "ws": "^8.18.3"
+  }
+}
