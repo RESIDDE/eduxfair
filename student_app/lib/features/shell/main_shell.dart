@@ -5,7 +5,11 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_chrome.dart';
 import '../../core/utils/motion.dart';
 import '../messages/providers/messages_provider.dart';
+import '../applications/providers/applications_provider.dart';
+import '../matches/providers/matches_provider.dart';
+import '../notifications/models/action_item.dart';
 import '../notifications/providers/notifications_provider.dart';
+import '../passport/providers/passport_provider.dart';
 import 'nav_scroll_policy.dart';
 import 'widgets/floating_nav_bar.dart';
 
@@ -119,9 +123,17 @@ class _MainShellState extends State<MainShell>
     final unreadMessages = context.select<MessagesProvider, int>(
       (p) => p.unreadCount,
     );
+    // The badge counts the standing to-dos as well as the unread
+    // notifications, because the to-dos used to be cards pinned above the
+    // feed and the badge is now the only thing that says they are waiting.
     final unreadNotifications = context.select<NotificationsProvider, int>(
-      (p) => p.unreadCount,
-    );
+          (p) => p.unreadCount,
+        ) +
+        studentActions(
+          passport: context.watch<PassportProvider>(),
+          matches: context.watch<MatchesProvider>(),
+          applications: context.watch<ApplicationsProvider>(),
+        ).length;
 
     final slotHeight = AppChrome.navSlotHeight(context);
     _slotHeight = slotHeight;

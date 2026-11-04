@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/supabase/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/motion.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/institution_avatar.dart';
@@ -308,7 +309,7 @@ class _Media extends StatelessWidget {
   /// The house ratio, used until the real one is known.
   static const fallbackRatio = 4 / 5;
 
-  /// How tall a single picture is allowed to get, as width ÷ height.
+  /// How tall a picture is allowed to get, as width ÷ height.
   ///
   /// 0.68 is about as tall as a phone allows before one post fills the whole
   /// viewport and the feed stops reading as a feed. A picture taller than this
@@ -317,102 +318,185 @@ class _Media extends StatelessWidget {
   static const minRatio = 0.68;
   static const maxRatio = 1.91;
 
+  static String urlFor(PostMedia m) => SupabaseService.instance.publicUrl(
+        bucket: AppConstants.bucketPostMedia,
+        path: m.storagePath,
+      );
+
   @override
   Widget build(BuildContext context) {
-    final service = SupabaseService.instance;
-    String url(PostMedia m) => service.publicUrl(
-          bucket: AppConstants.bucketPostMedia,
-          path: m.storagePath,
-        );
+    final shown = media.take(10).toList();
 
-    final shown = media.take(4).toList();
+    // The box takes its shape from the first picture either way, so a
+    // carousel does not resize as you swipe through it.
+    return _AspectBox(
+      url: urlFor(shown.first),
+      known: shown.first.ratio,
+      child: shown.length == 1
+          ? _Picture(url: urlFor(shown.first))
+          : _Carousel(urls: [for (final m in shown) urlFor(m)]),
+    );
+  }
+}
 
-    if (shown.length == 1) {
-      return _FittedImage(url: url(shown.first), known: shown.first.ratio);
-    }
+/// Several pictures, swiped through.
+///
+/// Replaces the mosaic this used to draw. A grid has to crop each picture to
+/// its cell, which is the thing the single-image case was just changed to stop
+/// doing; a carousel shows every one of them whole.
+class _Carousel extends StatefulWidget {
+  final List<String> urls;
 
-    // A mosaic crops to its cells by necessity — that is what a grid is. The
-    // cells are near-square, so the loss is small, and the case this matters
-    // for is the single full-width picture above.
-    Widget tile(PostMedia m) => CachedNetworkImage(
-          imageUrl: url(m),
-          fit: BoxFit.cover,
+  const _Carousel({required this.urls});
+
+  @override
+  State<_Carousel> createState() => _CarouselState();
+}
+
+class _CarouselState extends State<_Carousel> {
+  final _controller = PageController();
+  int _page = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Stack(
+      children: [
+        // Swallowed deliberately. A PageView emits the same horizontal scroll
+        // notifications a TabBarView does, and the shell reveals the nav bar
+        // when one settles — which is right for a tab change and wrong for
+        // flicking through a post's photos. Nothing between here and the shell
+        // needs them: the feed's pagination listens on a controller.
+        NotificationListener<ScrollNotification>(
+          onNotification: (_) => true,
+          child: PageView.builder(
+            controller: _controller,
+            itemCount: widget.urls.length,
+            onPageChanged: (i) => setState(() => _page = i),
+            itemBuilder: (_, i) => _Picture(url: widget.urls[i]),
+          ),
+        ),
+
+        // Which of how many, for when the dots get too numerous to count.
+        Positioned(
+          top: 10,
+          right: 10,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+              child: Text(
+                '${_page + 1}/${widget.urls.length}',
+                style: Theme.of(context)
+                    .textTheme
+                    .labelSmall
+                    ?.copyWith(color: colors.textOnDark),
+              ),
+            ),
+          ),
+        ),
+
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 10,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < widget.urls.length; i++)
+                AnimatedContainer(
+                  duration: reduceMotion(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                  width: i == _page ? 7 : 5,
+                  height: i == _page ? 7 : 5,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: colors.textOnDark
+                        .withValues(alpha: i == _page ? 0.95 : 0.45),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One picture, shown whole inside whatever box it is given.
+///
+/// `BoxFit.contain` is what guarantees nothing is ever cut. Whatever is left
+/// over is filled with a blurred, enlarged copy of the same picture rather
+/// than a flat grey bar, so a letterbox reads as part of the design.
+class _Picture extends StatelessWidget {
+  final String url;
+
+  const _Picture({required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    Widget image(BoxFit fit) => CachedNetworkImage(
+          imageUrl: url,
+          fit: fit,
           errorWidget: (_, __, ___) =>
-              ColoredBox(color: context.colors.surfaceVariant),
+              ColoredBox(color: colors.surfaceVariant),
         );
 
-    return ConstrainedBox(
-      constraints:
-          BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.68),
-      child: AspectRatio(
-        aspectRatio: fallbackRatio,
-        child: switch (shown.length) {
-          // Two across, each a tall half.
-          2 => Row(children: [
-              Expanded(child: tile(shown[0])),
-              const SizedBox(width: 2),
-              Expanded(child: tile(shown[1])),
-            ]),
-          // One large, two stacked. A 2x2 grid for three images leaves an
-          // empty cell, which is what this used to do.
-          3 => Row(children: [
-              Expanded(child: tile(shown[0])),
-              const SizedBox(width: 2),
-              Expanded(
-                child: Column(children: [
-                  Expanded(child: tile(shown[1])),
-                  const SizedBox(height: 2),
-                  Expanded(child: tile(shown[2])),
-                ]),
-              ),
-            ]),
-          _ => Row(children: [
-              Expanded(
-                child: Column(children: [
-                  Expanded(child: tile(shown[0])),
-                  const SizedBox(height: 2),
-                  Expanded(child: tile(shown[2])),
-                ]),
-              ),
-              const SizedBox(width: 2),
-              Expanded(
-                child: Column(children: [
-                  Expanded(child: tile(shown[1])),
-                  const SizedBox(height: 2),
-                  Expanded(child: tile(shown[3])),
-                ]),
-              ),
-            ]),
-        },
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Only ever visible where the picture does not reach.
+          ImageFiltered(
+            imageFilter: ImageFilter.blur(
+              sigmaX: 24,
+              sigmaY: 24,
+              tileMode: TileMode.clamp,
+            ),
+            child: image(BoxFit.cover),
+          ),
+          image(BoxFit.contain),
+        ],
       ),
     );
   }
 }
 
-/// A single picture, shown whole.
+/// Gives [child] the shape of the picture at [url].
 ///
-/// The box takes the picture's own shape so there is nothing to crop. Where
-/// the shape is unknown — every post made before the uploader started
-/// recording dimensions — it is read off the decoded image and the box
-/// settles onto it.
-///
-/// Whatever is left over after clamping is filled with a blurred, enlarged
-/// copy of the same picture rather than a flat grey bar, so a letterbox reads
-/// as part of the design. `BoxFit.contain` is what guarantees nothing is ever
-/// cut, even when the clamp bites.
-class _FittedImage extends StatefulWidget {
+/// Where the shape is unknown — every post made before the uploader started
+/// recording dimensions — it is read off the decoded image and the box settles
+/// onto it.
+class _AspectBox extends StatefulWidget {
   final String url;
 
   /// From the stored width and height, when the post has them.
   final double? known;
 
-  const _FittedImage({required this.url, this.known});
+  final Widget child;
+
+  const _AspectBox({required this.url, this.known, required this.child});
 
   @override
-  State<_FittedImage> createState() => _FittedImageState();
+  State<_AspectBox> createState() => _AspectBoxState();
 }
 
-class _FittedImageState extends State<_FittedImage> {
+class _AspectBoxState extends State<_AspectBox> {
   double? _resolved;
   ImageStream? _stream;
   ImageStreamListener? _listener;
@@ -424,7 +508,7 @@ class _FittedImageState extends State<_FittedImage> {
   }
 
   @override
-  void didUpdateWidget(_FittedImage old) {
+  void didUpdateWidget(_AspectBox old) {
     super.didUpdateWidget(old);
     if (old.url != widget.url) {
       _stopListening();
@@ -444,14 +528,14 @@ class _FittedImageState extends State<_FittedImage> {
       (info, _) {
         final ratio = info.image.width / info.image.height;
         // Our handle on the frame, not the cache's — releasing it is correct
-        // and the widget below still gets its own.
+        // and the picture below still gets its own.
         info.dispose();
         if (mounted && ratio.isFinite && ratio > 0) {
           setState(() => _resolved = ratio);
         }
       },
       // A picture that will not load falls back to the house ratio, which the
-      // error box below fills.
+      // error box fills.
       onError: (_, __) {},
     );
     _stream = provider.resolve(ImageConfiguration.empty)
@@ -474,42 +558,15 @@ class _FittedImageState extends State<_FittedImage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
     final ratio = (widget.known ?? _resolved ?? _Media.fallbackRatio)
         .clamp(_Media.minRatio, _Media.maxRatio);
-
-    Widget image(BoxFit fit) => CachedNetworkImage(
-          imageUrl: widget.url,
-          fit: fit,
-          errorWidget: (_, __, ___) =>
-              ColoredBox(color: colors.surfaceVariant),
-        );
 
     return ConstrainedBox(
       // Belt and braces for web and tablet widths, where even a clamped ratio
       // can be taller than the window.
       constraints:
           BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.72),
-      child: AspectRatio(
-        aspectRatio: ratio,
-        child: ClipRect(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Only ever visible where the picture does not reach.
-              ImageFiltered(
-                imageFilter: ImageFilter.blur(
-                  sigmaX: 24,
-                  sigmaY: 24,
-                  tileMode: TileMode.clamp,
-                ),
-                child: image(BoxFit.cover),
-              ),
-              image(BoxFit.contain),
-            ],
-          ),
-        ),
-      ),
+      child: AspectRatio(aspectRatio: ratio, child: widget.child),
     );
   }
 }

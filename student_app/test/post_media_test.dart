@@ -123,54 +123,63 @@ void main() {
     });
   });
 
-  group('the mosaic', () {
-    testWidgets('two images split the box down the middle', (tester) async {
-      await pumpCard(tester, 2);
-      final tiles = tester
-          .widgetList<CachedNetworkImage>(find.byType(CachedNetworkImage))
-          .length;
-      expect(tiles, 2);
-
-      final sizes = find.byType(CachedNetworkImage);
-      final a = tester.getSize(sizes.at(0));
-      final b = tester.getSize(sizes.at(1));
-      expect(a.width, closeTo(b.width, 0.5));
-      expect(a.height, closeTo(mediaBox(tester).height, 0.5),
-          reason: 'each is a full-height half');
-    });
-
-    testWidgets('three images are one large and two stacked — a 2x2 grid '
-        'would leave an empty fourth cell, which it used to', (tester) async {
-      await pumpCard(tester, 3);
-      final tiles = find.byType(CachedNetworkImage);
-      expect(tester.widgetList(tiles).length, 3);
-
-      final box = mediaBox(tester);
-      final big = tester.getSize(tiles.at(0));
-      final top = tester.getSize(tiles.at(1));
-      final bottom = tester.getSize(tiles.at(2));
-
-      expect(big.height, closeTo(box.height, 0.5), reason: 'full height');
-      expect(top.height, lessThan(big.height * 0.55));
-      expect(bottom.height, closeTo(top.height, 0.5));
-      expect(top.width, closeTo(big.width, 0.5));
-    });
-
-    testWidgets('four images make a 2x2', (tester) async {
-      await pumpCard(tester, 4);
-      expect(tester.widgetList(find.byType(CachedNetworkImage)).length, 4);
-      final box = mediaBox(tester);
-      for (var i = 0; i < 4; i++) {
-        final tile = tester.getSize(find.byType(CachedNetworkImage).at(i));
-        expect(tile.height, lessThan(box.height * 0.55));
-        expect(tile.width, lessThan(box.width * 0.55));
-      }
-    });
-
-    testWidgets('a fifth image is dropped rather than shrinking the rest',
+  group('several pictures', () {
+    testWidgets('swipe horizontally instead of being cropped into a grid',
         (tester) async {
-      await pumpCard(tester, 5);
-      expect(tester.widgetList(find.byType(CachedNetworkImage)).length, 4);
+      await pumpCard(tester, 3);
+      expect(find.byType(PageView), findsOneWidget);
+      final pager = tester.widget<PageView>(find.byType(PageView));
+      expect(pager.childrenDelegate.estimatedChildCount, 3);
+    });
+
+    testWidgets('a single picture needs no pager', (tester) async {
+      await pumpCard(tester, 1);
+      expect(find.byType(PageView), findsNothing);
+    });
+
+    testWidgets('every page is contained, so none of them is cut either',
+        (tester) async {
+      await pumpCard(tester, 2);
+      final fits = tester
+          .widgetList<CachedNetworkImage>(find.byType(CachedNetworkImage))
+          .map((i) => i.fit)
+          .toList();
+      expect(fits, contains(BoxFit.contain));
+    });
+
+    testWidgets('the box keeps one shape across the whole carousel, so it '
+        'does not resize as you swipe', (tester) async {
+      await pumpCard(tester, 3, w: 1080, h: 1350);
+      final box = mediaBox(tester);
+      expect(box.width / box.height, closeTo(1080 / 1350, 0.01));
+    });
+
+    testWidgets('the carousel swallows its own scroll notifications, so '
+        'swiping photos does not drive the nav bar', (tester) async {
+      await pumpCard(tester, 3);
+      final listener = tester.widget<NotificationListener<ScrollNotification>>(
+        find
+            .ancestor(
+              of: find.byType(PageView),
+              matching: find.byType(NotificationListener<ScrollNotification>),
+            )
+            .first,
+      );
+      expect(
+        listener.onNotification!(ScrollEndNotification(
+          metrics: FixedScrollMetrics(
+            minScrollExtent: 0,
+            maxScrollExtent: 2,
+            pixels: 1,
+            viewportDimension: 390,
+            axisDirection: AxisDirection.right,
+            devicePixelRatio: 3,
+          ),
+          context: tester.element(find.byType(PageView)),
+        )),
+        isTrue,
+        reason: 'returning true stops it reaching the shell',
+      );
     });
   });
 }

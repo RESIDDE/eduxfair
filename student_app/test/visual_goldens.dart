@@ -40,6 +40,10 @@ import 'package:lekkside_connect/features/auth/screens/account_type_screen.dart'
 import 'package:lekkside_connect/features/auth/screens/login_screen.dart';
 import 'package:lekkside_connect/core/theme/theme_provider.dart';
 import 'package:lekkside_connect/features/discover/models/institution.dart';
+import 'package:lekkside_connect/features/applications/providers/applications_provider.dart';
+import 'package:lekkside_connect/features/matches/providers/matches_provider.dart';
+import 'package:lekkside_connect/features/notifications/providers/notifications_provider.dart';
+import 'package:lekkside_connect/features/notifications/screens/notifications_screen.dart';
 import 'package:lekkside_connect/features/passport/providers/passport_provider.dart';
 import 'package:lekkside_connect/features/profile/screens/profile_screen.dart';
 import 'package:lekkside_connect/features/discover/widgets/institution_tile.dart';
@@ -287,6 +291,8 @@ void main() {
           providers: [
             ChangeNotifierProvider(create: (_) => AuthProvider()),
             ChangeNotifierProvider(create: (_) => PassportProvider()),
+            // Settings now shows a match count, so it needs this one too.
+            ChangeNotifierProvider(create: (_) => MatchesProvider()),
             ChangeNotifierProvider(
                 create: (_) => ThemeProvider(autoLoad: false)),
           ],
@@ -345,6 +351,25 @@ void main() {
       );
     });
   }
+
+  testWidgets('notifications — the to-dos that used to sit above the feed',
+      (tester) async {
+    await shoot(
+      tester,
+      'notifications_actions',
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => NotificationsProvider()),
+          ChangeNotifierProvider(create: (_) => PassportProvider()),
+          ChangeNotifierProvider(create: (_) => MatchesProvider()),
+          ChangeNotifierProvider(create: (_) => ApplicationsProvider()),
+        ],
+        child: const NotificationsScreen(),
+      ),
+      theme: AppTheme.darkTheme,
+      size: const Size(390, 500),
+    );
+  });
 
   testWidgets('post card — light', (tester) async {
     await shoot(tester, 'post_card_light', PostCard(post: fixture()),

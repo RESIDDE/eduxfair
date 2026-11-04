@@ -15,6 +15,7 @@ import '../../social/providers/feed_provider.dart';
 import '../../social/widgets/post_card.dart';
 import '../models/program.dart';
 import '../providers/discover_provider.dart';
+import '../widgets/student_search_results.dart';
 import '../widgets/institution_tile.dart';
 
 /// Browse the directory. Search and filtering run server-side, so a student on
@@ -32,7 +33,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   final _scrollController = ScrollController();
   Timer? _debounce;
 
-  late final TabController _tabs = TabController(length: 3, vsync: this);
+  late final TabController _tabs = TabController(length: 4, vsync: this);
 
   /// Post results are held here rather than in a provider: they belong to this
   /// screen's search box and nothing else reads them.
@@ -101,8 +102,9 @@ class _DiscoverScreenState extends State<DiscoverScreen>
 
   /// Debounced so typing does not fire a query per keystroke.
   ///
-  /// One box drives all three tabs: the provider's `search` filters programmes
-  /// *and* institutions server-side, and posts go through their own RPC.
+  /// One box drives all four tabs: the provider's `search` filters programmes
+  /// *and* institutions server-side, posts go through their own RPC, and the
+  /// students tab watches the controller itself.
   void _onSearchChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 400), () {
@@ -160,12 +162,13 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 Tab(text: 'Programs'),
                 Tab(text: 'Institutions'),
                 Tab(text: 'Posts'),
+                Tab(text: 'Students'),
               ],
             ),
           ),
         ),
         actions: [
-          if (_tabs.index != 2)
+          if (_tabs.index < 2)
             IconButton(
               tooltip: 'Filters',
               onPressed: _openFilters,
@@ -254,6 +257,20 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 _programsTab(context, provider),
                 _institutionsTab(context, provider),
                 _postsTab(context),
+                // Driven by the same search box as the other three: this is
+                // now the only place in the app you search for anyone.
+                //
+                // Listening to the controller rather than reading its text in
+                // build: _onSearchChanged is debounced and does not setState,
+                // so nothing else here rebuilds as you type.
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _searchController,
+                  builder: (context, value, _) => StudentSearchResults(
+                    query: value.text,
+                    padding: EdgeInsets.only(
+                        top: 8, bottom: AppChrome.navClearance(context)),
+                  ),
+                ),
               ],
             ),
           ),

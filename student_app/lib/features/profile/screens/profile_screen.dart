@@ -13,6 +13,8 @@ import '../../../core/theme/theme_mode_sheet.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/widgets/settings_section.dart';
 import '../../../core/widgets/user_avatar.dart';
+import '../../matches/providers/matches_provider.dart';
+import '../../social/screens/handle_sheet.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../passport/providers/passport_provider.dart';
 
@@ -138,6 +140,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final text = Theme.of(context).textTheme;
     final user = context.watch<AuthProvider>().user;
     final passport = context.watch<PassportProvider>();
+    final matches = context.watch<MatchesProvider>();
+    final handle = _blankToNull(passport.handle);
+    final bio = _blankToNull(passport.bio);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -167,11 +172,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: text.titleLarge,
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        AppConstants.homeCountries[user?.country] ??
-                            user?.country ??
-                            'Country not set',
-                        style: text.bodySmall,
+                      // Claiming a handle and writing a bio were only ever
+                      // reachable from the drawer, so they move here with it.
+                      InkWell(
+                        onTap: () => openClaimHandleSheet(context),
+                        child: Text(
+                          handle == null ? 'Choose a handle' : '@$handle',
+                          style: text.bodyMedium?.copyWith(
+                            color: handle == null
+                                ? colors.accent
+                                : colors.textSecondary,
+                            fontWeight: handle == null
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      InkWell(
+                        onTap: () => openClaimHandleSheet(context),
+                        child: Text(
+                          bio ?? 'Add a bio',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: text.bodySmall?.copyWith(
+                            color: bio == null
+                                ? colors.accent
+                                : colors.textSecondary,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 4),
                       InkWell(
@@ -229,6 +258,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title: 'Activity',
             rows: [
               SettingsRow(
+                icon: Icons.auto_awesome_outlined,
+                label: 'My matches',
+                value:
+                    matches.matchCount == 0 ? null : '${matches.matchCount}',
+                onTap: () => context.push(AppConstants.routeMatches),
+              ),
+              SettingsRow(
                 icon: Icons.send_outlined,
                 label: 'My applications',
                 onTap: () => context.push(AppConstants.routeApplications),
@@ -242,6 +278,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: Icons.qr_code_2_rounded,
                 label: 'Fair Passport',
                 onTap: () => context.push(AppConstants.routeFairPassport),
+              ),
+              SettingsRow(
+                icon: Icons.bookmark_border_rounded,
+                label: 'Saved',
+                onTap: () => context.push(AppConstants.routeSaved),
               ),
               SettingsRow(
                 icon: Icons.people_outline_rounded,
@@ -314,4 +355,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+}
+
+/// Treats an empty or whitespace-only value as absent, so "Add a bio" shows
+/// instead of a blank line.
+String? _blankToNull(String? value) {
+  final trimmed = value?.trim();
+  return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
 }
