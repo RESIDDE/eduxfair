@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/moderation/content_filter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../institution/providers/institution_provider.dart';
@@ -206,7 +207,70 @@ class _ComposerScreenState extends State<ComposerScreen> {
         _ => null,
       };
 
+  /// A refusal. One button, because there is nothing to negotiate.
+  Future<void> _showFilterRefusal(String message) async {
+    final colors = context.colors;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(Icons.block_rounded, color: colors.error),
+        title: const Text('This cannot be posted'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Edit it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A warning the author can overrule.
+  ///
+  /// Kept as a choice rather than a refusal because context decides: a
+  /// student quoting the abuse they received is not the student sending it,
+  /// and a filter that cannot tell them apart should not be the one deciding.
+  Future<bool> _confirmDespiteWarning(String message) async {
+    final colors = context.colors;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(Icons.warning_amber_rounded, color: colors.warning),
+        title: const Text('Have another look'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Edit it'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Post anyway'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   Future<void> _post() async {
+    // Guideline 1.2 asks for objectionable material to be filtered "from
+    // being posted" — so this runs before the upload, not after it. A
+    // refusal here costs one retyped sentence; the same refusal server-side
+    // would already have uploaded the images.
+    final verdict = ContentFilter.check(_body.text);
+    if (verdict.isBlocked) {
+      await _showFilterRefusal(verdict.message!);
+      return;
+    }
+    if (verdict.needsReview && !await _confirmDespiteWarning(verdict.message!)) {
+      return;
+    }
+    // Both branches above can await a dialog, and everything below this line
+    // reads from `context`.
+    if (!mounted) return;
+
     setState(() => _sending = true);
 
     // Everything that needs a BuildContext is resolved before the await.

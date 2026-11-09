@@ -12,6 +12,7 @@ import '../../../core/widgets/verified_badge.dart';
 import '../models/post.dart';
 import '../providers/feed_provider.dart';
 import '../widgets/post_card.dart';
+import '../../passport/providers/passport_provider.dart';
 import 'post_sheets.dart';
 
 /// Screen displayed when navigating to `/u/:handle`.
@@ -211,6 +212,23 @@ class _HandleProfileScreenState extends State<HandleProfileScreen> {
               icon: const Icon(Icons.school_outlined),
               onPressed: () => context.push('${AppConstants.routeInstitution}/$institutionId'),
             ),
+          // Report, mute or block the person — guideline 1.2 wants both the
+          // reporting and the blocking reachable from the person, not only
+          // from something they happened to post.
+          IconButton(
+            tooltip: 'More',
+            icon: const Icon(Icons.more_horiz_rounded),
+            onPressed: () => openAccountMenu(
+              context,
+              handle: handle,
+              // public_profiles deliberately does not expose a profile id,
+              // so identity is compared on the handle — which is unique and
+              // is the only thing this screen was given anyway.
+              isSelf: handle.toLowerCase() ==
+                  (context.read<PassportProvider>().handle ?? '')
+                      .toLowerCase(),
+            ),
+          ),
         ],
       ),
       body: RefreshIndicator(

@@ -13,6 +13,11 @@ class AppConstants {
 
   static const String supportEmail = 'support@educationfair.com.ng';
 
+  // The hosted copies. App Store Connect requires a reachable privacy policy
+  // URL in the listing metadata, so the same text has to exist at these
+  // addresses as well as in the app — see APP_REVIEW.md. Nothing in the app
+  // links out to them any more: guideline 2.1 rejects builds with
+  // non-functional URLs, and an in-app document cannot 404.
   static const String termsUrl = 'https://educationfair.com.ng/terms';
   static const String privacyUrl = 'https://educationfair.com.ng/privacy';
 
@@ -123,6 +128,16 @@ class AppConstants {
   static const String routePost = '/post';
   static const String routeCompose = '/compose';
   static const String routeHandle = '/u';
+
+  // ── Legal, safety and account control ─────────────────────────────────
+  // Shipped in the binary rather than linked out: App Review 2.1 rejects
+  // non-functional URLs and 5.1.1(i) wants the privacy policy reachable
+  // inside the app.
+  static const String routePrivacy = '/legal/privacy';
+  static const String routeTerms = '/legal/terms';
+  static const String routeGuidelines = '/legal/guidelines';
+  static const String routeBlocked = '/settings/blocked';
+  static const String routeDeleteAccount = '/settings/delete-account';
 
   // ── Domain vocabularies ───────────────────────────────────────────────────
   // These mirror the Postgres enums. Matching compares target fields against

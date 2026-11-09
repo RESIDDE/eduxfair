@@ -589,11 +589,13 @@ class FeedProvider extends ChangeNotifier {
   Future<bool> follow(String handle, {bool follow = true}) =>
       _call('follow_handle', {'p_handle': handle, 'p_follow': follow});
 
-  Future<bool> block(String handle) =>
-      _call('moderate_handle', {'p_handle': handle, 'p_action': 'block'});
+  /// block | unblock | mute | unmute — the four the RPC understands.
+  Future<bool> moderateHandle(String handle, String action) =>
+      _call('moderate_handle', {'p_handle': handle, 'p_action': action});
 
-  Future<bool> mute(String handle) =>
-      _call('moderate_handle', {'p_handle': handle, 'p_action': 'mute'});
+  Future<bool> block(String handle) => moderateHandle(handle, 'block');
+
+  Future<bool> mute(String handle) => moderateHandle(handle, 'mute');
 
   Future<bool> report({
     required String subjectType,

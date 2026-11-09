@@ -9,7 +9,11 @@ import 'core/theme/theme_provider.dart';
 import 'features/applications/screens/application_detail_screen.dart';
 import 'features/applications/screens/applications_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
+import 'features/account/screens/blocked_accounts_screen.dart';
+import 'features/account/screens/delete_account_screen.dart';
 import 'features/auth/screens/forgot_password_screen.dart';
+import 'features/legal/models/policies.dart';
+import 'features/legal/screens/legal_document_screen.dart';
 import 'features/auth/screens/account_type_screen.dart';
 import 'features/auth/screens/institution_register_screen.dart';
 import 'features/auth/screens/login_screen.dart';
@@ -136,6 +140,11 @@ GoRouter _buildRouter(AuthProvider auth, InstitutionProvider institutions) =>
         final location = state.matchedLocation;
 
         const open = {
+          // Readable signed out: the sign-up screen links to them, and
+          // guideline 5.1.1(i) wants the privacy policy easy to reach.
+          AppConstants.routePrivacy,
+          AppConstants.routeTerms,
+          AppConstants.routeGuidelines,
           AppConstants.routeSplash,
           AppConstants.routeOnboarding,
           AppConstants.routeLogin,
@@ -367,6 +376,39 @@ GoRouter _buildRouter(AuthProvider auth, InstitutionProvider institutions) =>
         ),
 
         // ── Full-screen routes that cover the tab bar ──────────────────────
+        // ── Legal, safety and account control ──────────────────────────
+        // Outside both shells and on the root navigator: reachable while
+        // signed out (the sign-up screen links to them) and covering the tab
+        // bar when signed in.
+        GoRoute(
+          path: AppConstants.routePrivacy,
+          parentNavigatorKey: _rootKey,
+          builder: (_, __) =>
+              const LegalDocumentScreen(document: privacyPolicy),
+        ),
+        GoRoute(
+          path: AppConstants.routeTerms,
+          parentNavigatorKey: _rootKey,
+          builder: (_, __) =>
+              const LegalDocumentScreen(document: termsOfService),
+        ),
+        GoRoute(
+          path: AppConstants.routeGuidelines,
+          parentNavigatorKey: _rootKey,
+          builder: (_, __) =>
+              const LegalDocumentScreen(document: communityGuidelines),
+        ),
+        GoRoute(
+          path: AppConstants.routeBlocked,
+          parentNavigatorKey: _rootKey,
+          builder: (_, __) => const BlockedAccountsScreen(),
+        ),
+        GoRoute(
+          path: AppConstants.routeDeleteAccount,
+          parentNavigatorKey: _rootKey,
+          builder: (_, __) => const DeleteAccountScreen(),
+        ),
+
         GoRoute(
           path: AppConstants.routeProfile,
           parentNavigatorKey: _rootKey,

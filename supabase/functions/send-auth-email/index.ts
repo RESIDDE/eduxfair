@@ -251,6 +251,12 @@ serve(async (req: Request) => {
       const fullName = String(payload.fullName ?? "").trim();
       const role = String(payload.role ?? "student").trim();
       const country = payload.country ? String(payload.country).trim() : null;
+      // ISO date, age-verification only. The database carries a CHECK that
+      // refuses anyone under sixteen, so a client that skips the picker
+      // cannot create an underage account by calling this directly.
+      const dateOfBirth = payload.dateOfBirth
+        ? String(payload.dateOfBirth).trim()
+        : null;
 
       if (!password || password.length < 8) {
         return new Response(
@@ -310,6 +316,7 @@ serve(async (req: Request) => {
           .update({
             email_verified: false,
             ...(country ? { country } : {}),
+            ...(dateOfBirth ? { date_of_birth: dateOfBirth } : {}),
           })
           .eq("id", createdUserId);
       }

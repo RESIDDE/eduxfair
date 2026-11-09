@@ -305,23 +305,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
 
           SettingsSection(
+            title: 'Safety',
+            rows: [
+              SettingsRow(
+                icon: Icons.block_outlined,
+                label: 'Blocked accounts',
+                onTap: () => context.push(AppConstants.routeBlocked),
+              ),
+              SettingsRow(
+                icon: Icons.shield_outlined,
+                label: 'Community Guidelines',
+                onTap: () => context.push(AppConstants.routeGuidelines),
+              ),
+            ],
+          ),
+
+          SettingsSection(
             title: 'About',
             rows: [
+              // In-app rather than launchUrl. App Review 2.1 rejects builds
+              // with non-functional URLs, and 5.1.1(i) wants the privacy
+              // policy reachable "within the app" — a link to a marketing
+              // site satisfies neither if the site is down or blocked on the
+              // reviewer's network.
               SettingsRow(
                 icon: Icons.description_outlined,
                 label: 'Terms of Service',
-                onTap: () => launchUrl(
-                  Uri.parse(AppConstants.termsUrl),
-                  mode: LaunchMode.externalApplication,
-                ),
+                onTap: () => context.push(AppConstants.routeTerms),
               ),
               SettingsRow(
                 icon: Icons.privacy_tip_outlined,
                 label: 'Privacy Policy',
-                onTap: () => launchUrl(
-                  Uri.parse(AppConstants.privacyUrl),
-                  mode: LaunchMode.externalApplication,
-                ),
+                onTap: () => context.push(AppConstants.routePrivacy),
               ),
               SettingsRow(
                 icon: Icons.mail_outline_rounded,
@@ -340,6 +355,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 label: 'Sign out',
                 tint: colors.error,
                 onTap: () => _signOut(context),
+              ),
+              // Guideline 5.1.1(v) wants this startable in the app and easy
+              // to find. Two taps from here, in the account settings, which
+              // is where Apple's own reference page says to put it.
+              SettingsRow(
+                icon: Icons.person_remove_outlined,
+                label: 'Delete account',
+                tint: colors.error,
+                onTap: () => context.push(AppConstants.routeDeleteAccount),
               ),
             ],
           ),

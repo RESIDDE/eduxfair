@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/supabase/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/institution_avatar.dart';
 import '../models/post.dart';
@@ -391,49 +392,57 @@ const _reportReasons = <String, String>{
   'other': 'Something else',
 };
 
+/// The reason list, shared by every report in the app.
+///
+/// One list rather than one per surface, so a post, a comment and an account
+/// are all reported against the same taxonomy — which is what makes the
+/// moderation queue sortable.
+Future<String?> _pickReportReason(BuildContext context) =>
+    showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+              child: Text('What is wrong with it?',
+                  style: Theme.of(sheetContext).textTheme.titleLarge),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Text(
+                'An Eduxfair reviewer reads every report. The person you '
+                'report is never told who reported them.',
+                style: Theme.of(sheetContext).textTheme.bodySmall,
+              ),
+            ),
+            ..._reportReasons.entries.map(
+              (e) => ListTile(
+                title: Text(e.value),
+                // Child safety is routed ahead of everything else in the
+                // queue, and saying so is part of why someone bothers to
+                // report it.
+                subtitle: e.key == 'child_safety'
+                    ? const Text('Reviewed first, ahead of everything else')
+                    : null,
+                onTap: () => Navigator.of(sheetContext).pop(e.key),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
 Future<void> openReportSheet(
   BuildContext context, {
   required String subjectType,
   required String subjectId,
 }) async {
-  final reason = await showModalBottomSheet<String>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    builder: (sheetContext) => SafeArea(
-      child: ListView(
-        shrinkWrap: true,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-            child: Text('What is wrong with it?',
-                style: Theme.of(sheetContext).textTheme.titleLarge),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: Text(
-              'An Eduxfair reviewer reads every report. The person you report '
-              'is never told who reported them.',
-              style: Theme.of(sheetContext).textTheme.bodySmall,
-            ),
-          ),
-          ..._reportReasons.entries.map(
-            (e) => ListTile(
-              title: Text(e.value),
-              // Child safety is routed ahead of everything else in the queue,
-              // and saying so is part of why someone bothers to report it.
-              subtitle: e.key == 'child_safety'
-                  ? const Text('Reviewed first, ahead of everything else')
-                  : null,
-              onTap: () => Navigator.of(sheetContext).pop(e.key),
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
-    ),
-  );
-
+  final reason = await _pickReportReason(context);
   if (reason == null || !context.mounted) return;
 
   final feed = context.read<FeedProvider>();
@@ -722,4 +731,112 @@ void _toast(BuildContext context, String message, {bool isError = false}) {
       backgroundColor: isError ? context.colors.error : null,
     ),
   );
+}
+
+// ── The account overflow menu ──────────────────────────────────────────────
+
+/// Report, mute or block a person, from their profile.
+///
+/// Guideline 1.2 asks for a way to report offensive content and to block
+/// abusive users. Posts and comments already had both; an account did not, so
+/// the only way to act on someone who was harassing you in several places was
+/// to find one of their posts first.
+Future<void> openAccountMenu(
+  BuildContext context, {
+  required String handle,
+  required bool isSelf,
+}) async {
+  if (isSelf) return;
+
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.volume_off_rounded),
+            title: Text('Mute @$handle'),
+            subtitle: const Text('They disappear from your feed.'),
+            onTap: () => Navigator.of(sheetContext).pop('mute'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.block_rounded),
+            title: Text('Block @$handle'),
+            subtitle: const Text(
+                'Neither of you sees the other anywhere, and any follow '
+                'between you is removed.'),
+            onTap: () => Navigator.of(sheetContext).pop('block'),
+          ),
+          ListTile(
+            leading: Icon(Icons.flag_outlined,
+                color: Theme.of(sheetContext).colorScheme.error),
+            title: const Text('Report this account'),
+            onTap: () => Navigator.of(sheetContext).pop('report'),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    ),
+  );
+
+  if (action == null || !context.mounted) return;
+  final feed = context.read<FeedProvider>();
+
+  switch (action) {
+    case 'mute':
+      final ok = await feed.moderateHandle(handle, 'mute');
+      if (context.mounted) {
+        _toast(context, ok ? 'Muted @$handle.' : feed.error ?? 'Failed.',
+            isError: !ok);
+      }
+
+    case 'block':
+      final confirmed = await _confirm(
+        context,
+        title: 'Block @$handle?',
+        body: 'Neither of you will see the other anywhere, and any follow '
+            'between you is removed. You can undo this in Settings → '
+            'Blocked accounts.',
+        action: 'Block',
+      );
+      if (confirmed != true || !context.mounted) return;
+      final ok = await feed.moderateHandle(handle, 'block');
+      if (context.mounted) {
+        _toast(context, ok ? 'Blocked @$handle.' : feed.error ?? 'Failed.',
+            isError: !ok);
+      }
+
+    case 'report':
+      await openAccountReportSheet(context, handle: handle);
+  }
+}
+
+/// The same reason list as every other report, filed against an account.
+///
+/// Goes through `report_handle` rather than the generic path because the
+/// client has no profile id to name — `social_profiles.profile_id` is never
+/// exposed by a public view, so the handle is resolved inside the database.
+Future<void> openAccountReportSheet(
+  BuildContext context, {
+  required String handle,
+}) async {
+  final reason = await _pickReportReason(context);
+  if (reason == null || !context.mounted) return;
+
+  try {
+    await SupabaseService.instance.client.rpc(
+      'report_handle',
+      params: {'p_handle': handle, 'p_reason': reason},
+    );
+    if (context.mounted) {
+      _toast(context,
+          'Reported. Someone will look at it — thank you for telling us.');
+    }
+  } catch (e) {
+    if (context.mounted) {
+      _toast(context, SupabaseService.describeError(e), isError: true);
+    }
+  }
 }

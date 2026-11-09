@@ -128,6 +128,7 @@ class AuthProvider extends ChangeNotifier {
     required String fullName,
     String? country,
     String role = 'student',
+    DateTime? dateOfBirth,
   }) =>
       _run(() async {
         assert(
@@ -141,6 +142,9 @@ class AuthProvider extends ChangeNotifier {
           'password': password,
           'fullName': fullName.trim(),
           if (country != null) 'country': country,
+          // Date only, no time: this is an age check, not an event.
+          if (dateOfBirth != null)
+            'dateOfBirth': dateOfBirth.toIso8601String().split('T').first,
           'role': role,
         });
 
