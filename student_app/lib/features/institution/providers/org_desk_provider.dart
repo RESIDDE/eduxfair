@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/supabase/supabase_service.dart';
 import '../models/pipeline.dart';
+import '../models/shared_student.dart';
 
 /// The two screens an admissions officer works in: the inbox and the pipeline.
 ///
@@ -232,6 +234,34 @@ class OrgDeskProvider extends ChangeNotifier {
       return const [];
     }
   }
+
+  /// Everything a student has shared with this institution, by match token.
+  ///
+  /// `institution_student_passport` checks the caller staffs the institution
+  /// the token belongs to and that the share is live; without a share it
+  /// returns only the student's applications here and the documents they
+  /// sent. Field labels come with it so targets read as words, not slugs.
+  Future<SharedStudent> studentPassport(String token) async {
+    final results = await Future.wait([
+      _service.client
+          .rpc('institution_student_passport', params: {'p_token': token}),
+      _service.client.from('fields_of_study').select('slug, label'),
+    ]);
+    final data = (results[0] as Map).cast<String, dynamic>();
+    final labels = {
+      for (final r in (results[1] as List).cast<Map<String, dynamic>>())
+        r['slug'] as String: r['label'] as String,
+    };
+    return SharedStudent.fromMap(data, fieldLabels: labels);
+  }
+
+  /// A short-lived link to one of a student's documents. Storage policy is the
+  /// gate: it answers only for a shared passport or a document sent here.
+  Future<String> documentUrl(String storagePath) => _service.signedUrl(
+        bucket: AppConstants.bucketPassportDocs,
+        path: storagePath,
+        expiresIn: const Duration(minutes: 10),
+      );
 
   Future<bool> _run(Future<void> Function() work) async {
     _busy = true;

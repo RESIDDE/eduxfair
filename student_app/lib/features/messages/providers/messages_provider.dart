@@ -602,6 +602,63 @@ class MessagesProvider extends ChangeNotifier {
     super.dispose();
   }
 
+  // ── Safety: blocking and reporting a conversation ───────────────────────
+
+  /// Which sides have blocked this conversation: 'student', 'institution',
+  /// both or neither. Either one stops new messages, in the database.
+  Future<Set<String>> blockedSides(String conversationId) async {
+    try {
+      final rows = await _service.client
+          .from('conversation_blocks')
+          .select('side')
+          .eq('conversation_id', conversationId);
+      return {
+        for (final r in (rows as List).cast<Map<String, dynamic>>())
+          r['side'] as String,
+      };
+    } catch (_) {
+      // An unknown state is shown as open; the insert policy still refuses a
+      // message to a blocked conversation, so this cannot leak one through.
+      return const {};
+    }
+  }
+
+  /// Blocks or unblocks the conversation for the caller's side. The database
+  /// works out which side that is.
+  Future<bool> setBlocked(String conversationId, bool blocked) async {
+    _error = null;
+    try {
+      await _service.client.rpc('set_conversation_blocked', params: {
+        'p_conversation_id': conversationId,
+        'p_blocked': blocked,
+      });
+      return true;
+    } catch (e) {
+      _error = SupabaseService.describeError(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Reports one message, or the conversation as a whole when [messageId] is
+  /// null. The database checks the caller can see what they are reporting.
+  Future<bool> report(String conversationId, String reason,
+      {String? messageId}) async {
+    _error = null;
+    try {
+      await _service.client.rpc('report_conversation', params: {
+        'p_conversation_id': conversationId,
+        'p_reason': reason,
+        'p_message_id': messageId,
+      });
+      return true;
+    } catch (e) {
+      _error = SupabaseService.describeError(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
   void clearError() {
     if (_error == null) return;
     _error = null;

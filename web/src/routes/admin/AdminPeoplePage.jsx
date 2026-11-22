@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ShieldCheck, ShieldX, UserCog, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Eye, ShieldCheck, ShieldX, UserCog, Users } from 'lucide-react';
 import {
   Alert, Badge, Button, Dialog, EmptyState, Field, Loading, SearchField,
   SegmentedControl, Select, SurfaceCard, Textarea,
@@ -120,7 +121,12 @@ export default function AdminPeoplePage() {
               <div className="flex flex-wrap items-start gap-3.5">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{person.full_name || 'Unnamed'}</span>
+                    <Link
+                      to={`/admin/people/${person.id}`}
+                      className="font-semibold hover:text-accent transition-colors"
+                    >
+                      {person.full_name || 'Unnamed'}
+                    </Link>
                     <Badge
                       tone={person.role === 'admin' ? 'live' : 'neutral'}
                       compact
@@ -167,6 +173,9 @@ export default function AdminPeoplePage() {
                 </div>
 
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <Link to={`/admin/people/${person.id}`}>
+                    <Button size="sm" variant="glass" icon={Eye}>View everything</Button>
+                  </Link>
                   <Button
                     size="sm"
                     variant="outline"

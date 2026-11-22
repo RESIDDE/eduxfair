@@ -9,7 +9,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/app_back_button.dart';
 import '../../../core/widgets/custom_text_field.dart';
+import '../../../core/widgets/chrome_button.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../widgets/org_ui.dart';
 import '../models/org_appointment.dart';
 import '../providers/institution_provider.dart';
 
@@ -533,55 +535,35 @@ class _OrgAppointmentsScreenState extends State<OrgAppointmentsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
     final pendingCount = _requested.length;
+
+    final freeSlots = _slots.where((s) => s['is_booked'] != true).length;
 
     return Scaffold(
       appBar: AppBar(
         leading: const AppBackButton(),
-        title: const Text('Meeting requests'),
+        title: const Text('Meetings'),
         actions: [
-          IconButton(
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
+          // Adding a free time sits top-right, like every other "add" in the
+          // app. Refresh is a pull on the list, as everywhere else.
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: ChromeButton.icon(
+              icon: Icons.add_rounded,
+              tooltip: 'Add a time you are free',
+              onTap: _publishSlot,
+            ),
           ),
-          IconButton(
-            onPressed: _publishSlot,
-            icon: const Icon(Icons.add_alarm_rounded),
-            tooltip: 'Publish slot',
-          ),
-          const SizedBox(width: 4),
         ],
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           tabs: [
-            Tab(
-              child: Row(
-                children: [
-                  const Text('Requested'),
-                  if (pendingCount > 0) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: colors.warning,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '$pendingCount',
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Tab(text: 'Upcoming (${_upcoming.length})'),
-            Tab(text: 'Open slots (${_slots.where((s) => s['is_booked'] != true).length})'),
-            Tab(text: 'History (${_history.length})'),
+            Tab(text: pendingCount > 0 ? 'Requests  $pendingCount' : 'Requests'),
+            Tab(text: _upcoming.isEmpty ? 'Upcoming' : 'Upcoming  ${_upcoming.length}'),
+            Tab(text: freeSlots == 0 ? 'Free times' : 'Free times  $freeSlots'),
+            const Tab(text: 'Past'),
           ],
         ),
       ),
@@ -595,7 +577,7 @@ class _OrgAppointmentsScreenState extends State<OrgAppointmentsScreen>
                     // Tab 1: Requested
                     _buildAppointmentList(
                       appointments: _requested,
-                      emptyTitle: 'No pending meeting requests',
+                      emptyTitle: 'No requests waiting',
                       emptyMessage: 'When students request a Meet Me appointment with your admissions staff, they will appear here for confirmation.',
                       isRequestedTab: true,
                     ),
@@ -614,7 +596,7 @@ class _OrgAppointmentsScreenState extends State<OrgAppointmentsScreen>
                     // Tab 4: History
                     _buildAppointmentList(
                       appointments: _history,
-                      emptyTitle: 'No appointment history',
+                      emptyTitle: 'No past meetings',
                       emptyMessage: 'Completed and past meetings are stored here.',
                     ),
                   ],
@@ -640,7 +622,7 @@ class _OrgAppointmentsScreenState extends State<OrgAppointmentsScreen>
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
         itemCount: appointments.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
@@ -659,7 +641,6 @@ class _OrgAppointmentsScreenState extends State<OrgAppointmentsScreen>
 
   Widget _buildSlotsList() {
     final colors = context.colors;
-    final text = Theme.of(context).textTheme;
 
     if (_slots.isEmpty) {
       return EmptyState(
@@ -674,82 +655,97 @@ class _OrgAppointmentsScreenState extends State<OrgAppointmentsScreen>
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+        padding: const EdgeInsets.only(top: 4, bottom: 40),
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${_slots.length} published slot${_slots.length == 1 ? '' : 's'}',
-                  style: text.labelLarge?.copyWith(color: colors.textSecondary),
-                ),
-                TextButton.icon(
-                  onPressed: _publishSlot,
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Add slot'),
-                ),
-              ],
-            ),
-          ),
-          ..._slots.map((slot) {
-            final start = DateTime.parse(slot['starts_at'] as String).toLocal();
-            final end = DateTime.parse(slot['ends_at'] as String).toLocal();
-            final isBooked = slot['is_booked'] as bool? ?? false;
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: colors.border),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: (isBooked ? colors.accent : colors.success).withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isBooked ? Icons.event_busy_rounded : Icons.event_available_rounded,
-                      size: 20,
-                      color: isBooked ? colors.accent : colors.success,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          formatDateTime(start),
-                          style: text.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          'Until ${TimeOfDay.fromDateTime(end).format(context)} · ${isBooked ? 'Booked by student' : 'Open for booking'}',
-                          style: text.bodySmall?.copyWith(
-                            color: isBooked ? colors.accent : colors.textSecondary,
+          OrgSectionLabel('Times students can book', count: _slots.length),
+          OrgGroup(
+            children: [
+              for (final slot in _slots)
+                Builder(builder: (context) {
+                  final start =
+                      DateTime.parse(slot['starts_at'] as String).toLocal();
+                  final end =
+                      DateTime.parse(slot['ends_at'] as String).toLocal();
+                  final isBooked = slot['is_booked'] as bool? ?? false;
+                  return OrgRow(
+                    leading: _DateTile(date: start),
+                    title: '${TimeOfDay.fromDateTime(start).format(context)} – '
+                        '${TimeOfDay.fromDateTime(end).format(context)}',
+                    subtitle: _weekday(start),
+                    tags: [
+                      isBooked
+                          ? OrgTag('Booked', tone: colors.accent)
+                          : const OrgTag('Open'),
+                    ],
+                    trailing: isBooked
+                        ? null
+                        : IconButton(
+                            onPressed: () => _deleteSlot(slot['id'] as String),
+                            icon: Icon(Icons.delete_outline_rounded,
+                                size: 20, color: colors.textLight),
+                            tooltip: 'Remove this time',
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (!isBooked)
-                    IconButton(
-                      onPressed: () => _deleteSlot(slot['id'] as String),
-                      icon: Icon(Icons.delete_outline_rounded, size: 20, color: colors.textLight),
-                      tooltip: 'Remove slot',
-                    ),
-                ],
-              ),
-            );
-          }),
+                  );
+                }),
+            ],
+          ),
+          const OrgNotice(
+            icon: Icons.info_outline_rounded,
+            margin: EdgeInsets.fromLTRB(16, 14, 16, 0),
+            message: 'Students see open times on your page and can book one '
+                'for a one-to-one meeting. Booked times can only be released '
+                'by cancelling the meeting.',
+          ),
         ],
       ),
+    );
+  }
+}
+
+String _weekday(DateTime d) {
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday',
+    'Saturday', 'Sunday'];
+  const months = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  return '${days[d.weekday - 1]} ${d.day} ${months[d.month - 1]}';
+}
+
+/// A calendar leaf: month above, day below — the shape iOS uses for a date,
+/// so it is read before it is parsed.
+class _DateTile extends StatelessWidget {
+  final DateTime? date;
+  const _DateTile({required this.date});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = Theme.of(context).textTheme;
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG',
+      'SEP', 'OCT', 'NOV', 'DEC'];
+    final d = date;
+    return Container(
+      width: 46,
+      height: 50,
+      decoration: BoxDecoration(
+        color: colors.surfaceVariant,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: d == null
+          ? Icon(Icons.schedule_rounded, color: colors.textSecondary, size: 20)
+          : Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(months[d.month - 1],
+                    style: text.labelSmall?.copyWith(
+                        color: colors.error,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10,
+                        letterSpacing: 0.4)),
+                Text('${d.day}',
+                    style: text.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700, height: 1.05)),
+              ],
+            ),
     );
   }
 }
@@ -773,213 +769,145 @@ class _AppointmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = Theme.of(context).textTheme;
+    final when = appointment.scheduledFor;
+    final statusTone = switch (appointment.status) {
+      'requested' => colors.warning,
+      'confirmed' => colors.success,
+      'declined' || 'cancelled' || 'no_show' => colors.error,
+      _ => null,
+    };
 
     return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colors.border),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Student Name & Status
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: colors.surfaceVariant,
-                  child: Text(
-                    appointment.studentName.isNotEmpty
-                        ? appointment.studentName[0].toUpperCase()
-                        : 'S',
-                    style: text.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        appointment.studentName,
-                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      if (appointment.programName != null)
-                        Text(
-                          appointment.programName!,
-                          style: text.bodySmall?.copyWith(color: colors.textSecondary),
-                        ),
-                    ],
-                  ),
-                ),
-                _StatusBadge(status: appointment.status, label: appointment.statusLabel),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Time & Channel Info
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: colors.surfaceVariant.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.calendar_today_rounded, size: 14, color: colors.accent),
-                  const SizedBox(width: 6),
-                  Text(
-                    appointment.scheduledFor != null
-                        ? formatDateTime(appointment.scheduledFor!)
-                        : 'Time requested by student',
-                    style: text.bodySmall?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    appointment.isLekksideRoom
-                        ? Icons.videocam_rounded
-                        : Icons.link_rounded,
-                    size: 16,
-                    color: colors.textSecondary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${appointment.durationMin}m · ${appointment.isLekksideRoom ? 'In-app room' : 'External link'}',
-                    style: text.labelSmall?.copyWith(color: colors.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-
-            if (appointment.studentMessage != null && appointment.studentMessage!.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                '“${appointment.studentMessage}”',
-                style: text.bodySmall?.copyWith(fontStyle: FontStyle.italic, color: colors.textSecondary),
-              ),
-            ],
-
-            if (appointment.notes != null && appointment.notes!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Note: ${appointment.notes}',
-                style: text.labelSmall?.copyWith(color: colors.textLight),
-              ),
-            ],
-
-            const SizedBox(height: 14),
-
-            // Action Buttons
-            if (onConfirm != null) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: isBusy ? null : onDecline,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: colors.error,
-                        side: BorderSide(color: colors.error.withValues(alpha: 0.4)),
-                        minimumSize: const Size(0, 42),
-                      ),
-                      child: const Text('Decline'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DateTile(date: when),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      appointment.studentName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: isBusy ? null : onConfirm,
-                      style: ElevatedButton.styleFrom(minimumSize: const Size(0, 42)),
-                      child: const Text('Confirm time'),
+                    Text(
+                      when == null
+                          ? 'Time to be agreed'
+                          : '${_weekday(when)} · ${TimeOfDay.fromDateTime(when).format(context)}',
+                      style: text.bodySmall?.copyWith(color: colors.textPrimary),
                     ),
-                  ),
-                ],
-              ),
-            ] else if (appointment.isUpcoming) ...[
-              Row(
-                children: [
-                  if (appointment.isLekksideRoom)
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: appointment.canJoinNow
-                            ? () => context.push('${AppConstants.routeCall}/appointment/${appointment.id}')
-                            : null,
-                        icon: const Icon(Icons.videocam_rounded, size: 18),
-                        label: Text(appointment.canJoinNow ? 'Join video call' : 'Call opens 10m before'),
-                        style: ElevatedButton.styleFrom(minimumSize: const Size(0, 42)),
-                      ),
-                    )
-                  else if (appointment.meetingUrl != null)
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => launchUrl(Uri.parse(appointment.meetingUrl!)),
-                        icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                        label: const Text('Open meeting link'),
-                        style: ElevatedButton.styleFrom(minimumSize: const Size(0, 42)),
-                      ),
-                    ),
-                  if (onCancel != null) ...[
-                    const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: isBusy ? null : onCancel,
-                      icon: Icon(Icons.cancel_outlined, color: colors.error, size: 22),
-                      tooltip: 'Cancel meeting',
+                    Text(
+                      [
+                        '${appointment.durationMin} min',
+                        appointment.isLekksideRoom ? 'In-app video' : 'External link',
+                        if (appointment.programName != null) appointment.programName!,
+                      ].join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.bodySmall?.copyWith(color: colors.textSecondary),
                     ),
                   ],
-                ],
+                ),
               ),
+              const SizedBox(width: 8),
+              OrgTag(appointment.statusLabel, tone: statusTone),
             ],
+          ),
+          if (appointment.studentMessage != null &&
+              appointment.studentMessage!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              decoration: BoxDecoration(
+                color: colors.surfaceVariant,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                appointment.studentMessage!,
+                style: text.bodySmall?.copyWith(height: 1.4),
+              ),
+            ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final String status;
-  final String label;
-
-  const _StatusBadge({required this.status, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    Color bg;
-    Color fg;
-
-    switch (status) {
-      case 'confirmed':
-        bg = colors.successLight;
-        fg = colors.success;
-        break;
-      case 'requested':
-        bg = colors.warningLight;
-        fg = colors.warning;
-        break;
-      case 'completed':
-        bg = colors.infoLight;
-        fg = colors.info;
-        break;
-      case 'declined':
-      case 'cancelled':
-        bg = colors.errorLight;
-        fg = colors.error;
-        break;
-      default:
-        bg = colors.surfaceVariant;
-        fg = colors.textSecondary;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fg),
+          if (appointment.notes != null && appointment.notes!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Note: ${appointment.notes}',
+              style: text.labelSmall?.copyWith(color: colors.textLight),
+            ),
+          ],
+          if (onConfirm != null) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OrgPillButton(
+                    label: 'Decline',
+                    tone: colors.error,
+                    onTap: isBusy ? null : onDecline,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OrgPillButton(
+                    label: 'Confirm',
+                    primary: true,
+                    onTap: isBusy ? null : onConfirm,
+                  ),
+                ),
+              ],
+            ),
+          ] else if (appointment.isUpcoming) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                if (appointment.isLekksideRoom)
+                  Expanded(
+                    child: OrgPillButton(
+                      label: appointment.canJoinNow
+                          ? 'Join video call'
+                          : 'Opens 10 min before',
+                      icon: Icons.videocam_rounded,
+                      primary: appointment.canJoinNow,
+                      onTap: appointment.canJoinNow
+                          ? () => context.push(
+                              '${AppConstants.routeCall}/appointment/${appointment.id}')
+                          : null,
+                    ),
+                  )
+                else if (appointment.meetingUrl != null)
+                  Expanded(
+                    child: OrgPillButton(
+                      label: 'Open meeting link',
+                      icon: Icons.open_in_new_rounded,
+                      primary: true,
+                      onTap: () => launchUrl(Uri.parse(appointment.meetingUrl!)),
+                    ),
+                  ),
+                if (onCancel != null) ...[
+                  const SizedBox(width: 8),
+                  OrgPillButton(
+                    label: 'Cancel',
+                    tone: colors.error,
+                    onTap: isBusy ? null : onCancel,
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }

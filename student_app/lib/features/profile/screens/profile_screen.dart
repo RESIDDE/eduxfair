@@ -4,11 +4,11 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/push_once.dart';
+import '../widgets/edit_name_sheet.dart';
 import '../../../core/supabase/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/profile_photo_sheet.dart';
-import '../../../core/utils/validators.dart';
-import '../../../core/widgets/custom_text_field.dart';
 import '../../../core/theme/theme_mode_sheet.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/widgets/settings_section.dart';
@@ -74,37 +74,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _editName(BuildContext context) async {
-    final auth = context.read<AuthProvider>();
-    final controller = TextEditingController(text: auth.user?.fullName ?? '');
-
-    final saved = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Your name'),
-        content: CustomTextField(
-          controller: controller,
-          hint: 'As it appears on your documents',
-          textCapitalization: TextCapitalization.words,
-          validator: AppValidators.validateName,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(controller.text),
-            style: ElevatedButton.styleFrom(minimumSize: const Size(0, 40)),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-
-    if (saved == null || saved.trim().length < 2) return;
-    await auth.updateProfile(fullName: saved);
-  }
+  Future<void> _editName(BuildContext context) => showEditNameSheet(context);
 
   Future<void> _signOut(BuildContext context) async {
     final confirmed = await showDialog<bool>(
@@ -258,7 +228,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title: 'Activity',
             rows: [
               SettingsRow(
-                icon: Icons.auto_awesome_outlined,
+                icon: Icons.school_outlined,
                 label: 'My matches',
                 value:
                     matches.matchCount == 0 ? null : '${matches.matchCount}',
@@ -310,12 +280,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SettingsRow(
                 icon: Icons.block_outlined,
                 label: 'Blocked accounts',
-                onTap: () => context.push(AppConstants.routeBlocked),
+                onTap: () => context.pushOnce(AppConstants.routeBlocked),
               ),
               SettingsRow(
                 icon: Icons.shield_outlined,
                 label: 'Community Guidelines',
-                onTap: () => context.push(AppConstants.routeGuidelines),
+                onTap: () => context.pushOnce(AppConstants.routeGuidelines),
               ),
             ],
           ),
@@ -331,12 +301,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SettingsRow(
                 icon: Icons.description_outlined,
                 label: 'Terms of Service',
-                onTap: () => context.push(AppConstants.routeTerms),
+                onTap: () => context.pushOnce(AppConstants.routeTerms),
               ),
               SettingsRow(
                 icon: Icons.privacy_tip_outlined,
                 label: 'Privacy Policy',
-                onTap: () => context.push(AppConstants.routePrivacy),
+                onTap: () => context.pushOnce(AppConstants.routePrivacy),
               ),
               SettingsRow(
                 icon: Icons.mail_outline_rounded,

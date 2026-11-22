@@ -223,14 +223,19 @@ class ApplicationsProvider extends ChangeNotifier {
     }
   }
 
-  /// Marks a document request fulfilled once the student has uploaded.
-  Future<bool> markRequestFulfilled(DocumentRequest request) async {
+  /// Answers an institution's document request with one of the student's
+  /// passport documents.
+  ///
+  /// One call to `fulfil_document_request`, which attaches the document to the
+  /// application, marks the request sent and tells the institution — together,
+  /// so a request can never read "sent" with nothing attached.
+  Future<bool> fulfilRequest(DocumentRequest request, String documentId) async {
     _error = null;
     try {
-      await _service.client
-          .from('application_document_requests')
-          .update({'fulfilled_at': DateTime.now().toUtc().toIso8601String()})
-          .eq('id', request.id);
+      await _service.client.rpc('fulfil_document_request', params: {
+        'p_request_id': request.id,
+        'p_document_id': documentId,
+      });
       await load();
       return true;
     } catch (e) {

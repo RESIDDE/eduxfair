@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/theme_provider.dart';
+import '../../../core/theme/theme_mode_sheet.dart';
+import '../../../core/widgets/settings_section.dart';
+import '../../../core/constants/app_chrome.dart';
 import '../../../core/supabase/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../core/utils/profile_photo_sheet.dart';
+import '../../../core/utils/push_once.dart';
 import '../../../core/widgets/institution_avatar.dart';
 import '../../../core/widgets/verified_badge.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -111,219 +118,225 @@ class _OrgMoreScreenState extends State<OrgMoreScreen> {
     final user = context.watch<AuthProvider>().user;
     final demand = provider.demand;
 
+    String? count(int n) => n > 0 ? formatThousands(n) : null;
+
+    // The same grouped list as the student's Settings screen, row for row in
+    // style, so staff and students learn one app rather than two.
     return Scaffold(
       appBar: AppBar(title: const Text('More')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        padding: EdgeInsets.only(bottom: AppChrome.navClearance(context)),
         children: [
-          if (managed != null) ...[
-            Row(
-              children: [
-                InstitutionAvatar(
-                  logoUrl: managed.institution.logoUrl,
-                  initials: managed.institution.initials,
-                  size: 56,
-                  onEdit: _pickAndUploadLogo,
-                  isBusy: _uploadingLogo,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(managed.institution.name, style: text.titleLarge),
-                      Text(
-                        '${managed.tierLabel} plan · '
-                        '${managed.isOwner ? 'Owner' : 'Admissions officer'}',
-                        style: text.bodySmall,
-                      ),
-                    ],
+          if (managed != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Row(
+                children: [
+                  InstitutionAvatar(
+                    logoUrl: managed.institution.logoUrl,
+                    initials: managed.institution.initials,
+                    size: 64,
+                    onEdit: _pickAndUploadLogo,
+                    isBusy: _uploadingLogo,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                managed.institution.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: text.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            if (managed.isVerified) ...[
+                              const SizedBox(width: 4),
+                              const VerifiedBadge(
+                                subject: VerifiedSubject.institution,
+                                compact: true,
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${user?.fullName ?? 'You'} · '
+                          '${managed.isOwner ? 'Owner' : 'Admissions officer'}',
+                          style: text.bodyMedium
+                              ?.copyWith(color: colors.textSecondary),
+                        ),
+                        Text(
+                          '${managed.tierLabel} plan',
+                          style: text.bodySmall
+                              ?.copyWith(color: colors.textLight),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            VerificationStatusChip(
-              status: managed.institution.verificationStatus,
-              subject: VerifiedSubject.institution,
-            ),
-            const SizedBox(height: 24),
-          ],
 
-          _Group(
+          SettingsSection(
             title: 'Recruitment',
-            tiles: [
-              _Tile(
-                icon: Icons.auto_awesome_outlined,
+            rows: [
+              SettingsRow(
+                icon: Icons.person_search_outlined,
                 label: 'Matched students',
-                trailing: '${demand.matchedStudents}',
-                route: AppConstants.routeOrgStudents,
+                value: count(demand.matchedStudents),
+                onTap: () => context.push(AppConstants.routeOrgStudents),
               ),
-              _Tile(
+              SettingsRow(
                 icon: Icons.workspaces_outline,
-                label: 'Pipeline',
-                trailing: '${demand.openApplications}',
-                route: AppConstants.routeOrgPipeline,
+                label: 'Applications',
+                value: count(demand.openApplications),
+                onTap: () => context.push(AppConstants.routeOrgPipeline),
               ),
-              _Tile(
+              SettingsRow(
                 icon: Icons.forum_outlined,
                 label: 'Inbox',
-                trailing: demand.unreadConversations > 0
-                    ? '${demand.unreadConversations}'
-                    : null,
-                route: AppConstants.routeOrgInbox,
+                value: count(demand.unreadConversations),
+                onTap: () => context.push(AppConstants.routeOrgInbox),
               ),
-              _Tile(
+              SettingsRow(
                 icon: Icons.event_available_outlined,
                 label: 'Meeting requests',
-                trailing: demand.pendingAppointments > 0
-                    ? '${demand.pendingAppointments}'
-                    : null,
-                route: AppConstants.routeOrgAppointments,
+                value: count(demand.pendingAppointments),
+                onTap: () => context.push(AppConstants.routeOrgAppointments),
               ),
-              _Tile(
+              SettingsRow(
                 icon: Icons.people_outline_rounded,
                 label: 'Student followers',
-                trailing: '${demand.followers}',
-                route: AppConstants.routeOrgFollowers,
+                value: count(demand.followers),
+                onTap: () => context.push(AppConstants.routeOrgFollowers),
               ),
             ],
           ),
 
-          const SizedBox(height: 18),
-          _Group(
+          SettingsSection(
             title: 'Our institution',
-            tiles: [
+            rows: [
               if (!(managed?.isEmbassy ?? false))
-                _Tile(
+                SettingsRow(
                   icon: Icons.school_outlined,
-                  label: 'Programs',
-                  route: AppConstants.routeOrgPrograms,
+                  label: 'Programmes',
+                  onTap: () => context.push(AppConstants.routeOrgPrograms),
                 ),
-              _Tile(
+              SettingsRow(
                 icon: Icons.qr_code_2_rounded,
                 label: 'Fairs and booths',
-                route: AppConstants.routeOrgFairs,
+                onTap: () => context.push(AppConstants.routeOrgFairs),
               ),
-              _Tile(
+              SettingsRow(
                 icon: Icons.group_outlined,
                 label: 'Team',
-                route: AppConstants.routeOrgTeam,
+                onTap: () => context.push(AppConstants.routeOrgTeam),
               ),
-              _Tile(
-                icon: Icons.settings_outlined,
-                label: 'Settings and verification',
-                route: AppConstants.routeOrgSettings,
+              SettingsRow(
+                icon: Icons.verified_outlined,
+                label: 'Listing and verification',
+                value: managed == null
+                    ? null
+                    : managed.isVerified
+                        ? 'Verified'
+                        : managed.institution.verificationStatus == 'pending'
+                            ? 'In review'
+                            : 'Not verified',
+                onTap: () => context.push(AppConstants.routeOrgSettings),
               ),
             ],
           ),
 
-          const SizedBox(height: 26),
-          OutlinedButton.icon(
-            onPressed: () => _signOut(context),
-            icon: const Icon(Icons.logout_rounded, size: 18),
-            label: const Text('Sign out'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colors.error,
-              side: BorderSide(color: colors.error),
-            ),
+          // The same safety, legal and account controls a student has, for
+          // the same reasons: guideline 1.2 (block and report, published
+          // contact), 5.1.1(i) (privacy policy reachable in the app) and
+          // 5.1.1(v) (an account made in the app can be deleted in the app).
+          SettingsSection(
+            title: 'Appearance',
+            rows: [
+              SettingsRow(
+                icon: Icons.dark_mode_outlined,
+                label: 'Theme',
+                value: switch (context.watch<ThemeProvider>().mode) {
+                  ThemeMode.light => 'Light',
+                  ThemeMode.dark => 'Dark',
+                  ThemeMode.system => 'System',
+                },
+                onTap: () => showThemeModeSheet(context),
+              ),
+            ],
           ),
-          const SizedBox(height: 14),
+
+          SettingsSection(
+            title: 'Safety',
+            rows: [
+              SettingsRow(
+                icon: Icons.block_outlined,
+                label: 'Blocked accounts',
+                onTap: () => context.pushOnce(AppConstants.routeBlocked),
+              ),
+              SettingsRow(
+                icon: Icons.shield_outlined,
+                label: 'Community Guidelines',
+                onTap: () => context.pushOnce(AppConstants.routeGuidelines),
+              ),
+            ],
+          ),
+
+          SettingsSection(
+            title: 'About',
+            rows: [
+              SettingsRow(
+                icon: Icons.description_outlined,
+                label: 'Terms of Service',
+                onTap: () => context.pushOnce(AppConstants.routeTerms),
+              ),
+              SettingsRow(
+                icon: Icons.privacy_tip_outlined,
+                label: 'Privacy Policy',
+                onTap: () => context.pushOnce(AppConstants.routePrivacy),
+              ),
+              SettingsRow(
+                icon: Icons.mail_outline_rounded,
+                label: 'Contact support',
+                onTap: () => launchUrl(
+                    Uri.parse('mailto:${AppConstants.supportEmail}')),
+              ),
+            ],
+          ),
+
+          SettingsSection(
+            title: 'Account',
+            rows: [
+              SettingsRow(
+                icon: Icons.logout_rounded,
+                label: 'Sign out',
+                onTap: () => _signOut(context),
+              ),
+              SettingsRow(
+                icon: Icons.delete_outline_rounded,
+                label: 'Delete account',
+                tint: colors.error,
+                onTap: () => context.pushOnce(AppConstants.routeDeleteAccount),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
           Center(
             child: Text(
-              '${user?.fullName ?? ''} · ${AppConstants.appName} '
-              '${AppConstants.appVersion}',
+              '${AppConstants.appName} ${AppConstants.appVersion}',
               style: text.labelSmall?.copyWith(color: colors.textLight),
-              textAlign: TextAlign.center,
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Tile {
-  final IconData icon;
-  final String label;
-  final String? trailing;
-  final String route;
-
-  const _Tile({
-    required this.icon,
-    required this.label,
-    this.trailing,
-    required this.route,
-  });
-}
-
-class _Group extends StatelessWidget {
-  final String title;
-  final List<_Tile> tiles;
-
-  const _Group({required this.title, required this.tiles});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final text = Theme.of(context).textTheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(title,
-              style: text.labelMedium?.copyWith(color: colors.textSecondary)),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colors.border),
-          ),
-          child: Column(
-            children: [
-              for (var i = 0; i < tiles.length; i++) ...[
-                InkWell(
-                  onTap: () => context.push(tiles[i].route),
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(i == 0 ? 16 : 0),
-                    bottom: Radius.circular(i == tiles.length - 1 ? 16 : 0),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    child: Row(
-                      children: [
-                        Icon(tiles[i].icon, size: 20, color: colors.accent),
-                        const SizedBox(width: 14),
-                        Expanded(
-                            child: Text(tiles[i].label, style: text.bodyLarge)),
-                        if (tiles[i].trailing != null)
-                          Text(
-                            tiles[i].trailing!,
-                            style: text.bodySmall
-                                ?.copyWith(color: colors.textSecondary),
-                          ),
-                        const SizedBox(width: 6),
-                        Icon(Icons.chevron_right_rounded,
-                            size: 20, color: colors.textLight),
-                      ],
-                    ),
-                  ),
-                ),
-                if (i < tiles.length - 1)
-                  Divider(
-                      height: 1,
-                      color: colors.divider,
-                      indent: 50,
-                      endIndent: 16),
-              ],
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

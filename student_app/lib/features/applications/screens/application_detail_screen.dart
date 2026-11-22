@@ -4,8 +4,10 @@ import 'package:timeline_tile/timeline_tile.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/document_files.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/institution_avatar.dart';
+import '../../passport/models/passport_document.dart';
 import '../../passport/providers/passport_provider.dart';
 import '../models/application.dart';
 import '../providers/applications_provider.dart';
@@ -25,6 +27,9 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   Application? _application;
   List<String> _attachedIds = [];
   bool _loading = true;
+
+  /// The request whose file is uploading, so its card can say so.
+  String? _sending;
 
   @override
   void initState() {
@@ -188,6 +193,164 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     );
   }
 
+  /// Answers one request: pick a document already in the passport, or upload
+  /// a new one, and it goes to the institution in the same step.
+  Future<void> _sendForRequest(DocumentRequest request) async {
+    final application = _application;
+    if (application == null) return;
+    final passport = context.read<PassportProvider>();
+    final institution = application.institution?.name ?? 'the institution';
+
+    // Matching documents first: they are almost always the answer.
+    final docs = [...passport.documents]..sort((a, b) {
+        final am = a.kind == request.kind ? 0 : 1;
+        final bm = b.kind == request.kind ? 0 : 1;
+        if (am != bm) return am - bm;
+        return b.createdAt.compareTo(a.createdAt);
+      });
+
+    final choice = await showModalBottomSheet<Object>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      useRootNavigator: true,
+      builder: (sheetContext) {
+        final colors = sheetContext.colors;
+        final text = Theme.of(sheetContext).textTheme;
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.8,
+          ),
+          child: SafeArea(
+            top: false,
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.only(bottom: 16),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+                  child: Text('Send your ${request.kindLabel.toLowerCase()}',
+                      style: text.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: Text(
+                    request.note == null
+                        ? '$institution will be able to open the file you '
+                            'choose. It also stays in your passport.'
+                        : '“${request.note}”',
+                    style: text.bodyMedium
+                        ?.copyWith(color: colors.textSecondary, height: 1.4),
+                  ),
+                ),
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: colors.surfaceVariant,
+                    child: Icon(Icons.upload_file_rounded,
+                        color: colors.textPrimary),
+                  ),
+                  title: const Text('Upload a new file'),
+                  subtitle: const Text('PDF, photo or Word document, up to 20 MB'),
+                  onTap: () => Navigator.of(sheetContext).pop('upload'),
+                ),
+                if (docs.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                    child: Text('From your passport',
+                        style: text.labelLarge
+                            ?.copyWith(color: colors.textSecondary)),
+                  ),
+                  for (final doc in docs)
+                    ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: colors.surfaceVariant,
+                        child: Icon(Icons.description_outlined,
+                            color: colors.textPrimary),
+                      ),
+                      title: Text(doc.kindLabel),
+                      subtitle: Text(
+                        doc.kind == request.kind
+                            ? '${doc.fileName} · what they asked for'
+                            : doc.fileName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => Navigator.of(sheetContext).pop(doc),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (choice == null || !mounted) return;
+
+    PassportDocument? document;
+    if (choice is PassportDocument) {
+      document = choice;
+    } else {
+      document = await _uploadFor(request);
+    }
+    if (document == null || !mounted) return;
+
+    final provider = context.read<ApplicationsProvider>();
+    final ok = await provider.fulfilRequest(request, document.id);
+    if (!mounted) return;
+    if (ok) await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok
+          ? 'Sent to $institution.'
+          : provider.error ?? 'Could not send that document.'),
+      backgroundColor: ok ? null : context.colors.error,
+    ));
+  }
+
+  /// Picks a file, uploads it to the passport under the requested kind, and
+  /// returns the new document.
+  Future<PassportDocument?> _uploadFor(DocumentRequest request) async {
+    final file = await DocumentFiles.pick();
+    if (file == null || !mounted) return null;
+    final bytes = file.bytes;
+    final messenger = ScaffoldMessenger.of(context);
+    final errorColour = context.colors.error;
+
+    if (bytes == null) {
+      messenger.showSnackBar(SnackBar(
+          content: const Text('Could not read that file.'),
+          backgroundColor: errorColour));
+      return null;
+    }
+    if (bytes.length > DocumentFiles.maxBytes) {
+      messenger.showSnackBar(SnackBar(
+          content: const Text('That file is larger than 20 MB.'),
+          backgroundColor: errorColour));
+      return null;
+    }
+
+    final passport = context.read<PassportProvider>();
+    setState(() => _sending = request.id);
+    final ok = await passport.uploadDocument(
+      kind: request.kind,
+      fileName: file.name,
+      bytes: bytes,
+      mime: DocumentFiles.mimeFor(file.extension),
+    );
+    if (!mounted) return null;
+    setState(() => _sending = null);
+    if (!ok) {
+      messenger.showSnackBar(SnackBar(
+          content: Text(passport.error ?? 'Could not upload that file.'),
+          backgroundColor: errorColour));
+      return null;
+    }
+    // uploadDocument puts the new row first.
+    return passport.documents.first;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -274,16 +437,16 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
               (request) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
                   decoration: BoxDecoration(
                     color: colors.warningLight,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Icon(Icons.upload_file_rounded,
-                          size: 18, color: colors.warning),
+                          size: 20, color: colors.warning),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -296,11 +459,59 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                           ],
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      _sending == request.id
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 18),
+                              child: SizedBox.square(
+                                dimension: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : FilledButton(
+                              onPressed: _sending != null
+                                  ? null
+                                  : () => _sendForRequest(request),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: colors.textPrimary,
+                                foregroundColor: colors.background,
+                                minimumSize: const Size(0, 38),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 18),
+                              ),
+                              child: const Text('Send'),
+                            ),
                     ],
                   ),
                 ),
               ),
             ),
+          ],
+
+          // What has already gone, so the student can see the request was
+          // answered rather than wonder whether it vanished.
+          if (application.documentRequests.any((r) => !r.isOutstanding)) ...[
+            const SizedBox(height: 12),
+            ...application.documentRequests
+                .where((r) => !r.isOutstanding)
+                .map((request) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_circle_rounded,
+                              size: 18, color: colors.success),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${request.kindLabel} sent'
+                              '${request.fulfilledAt == null ? '' : ' · ${_formatDateTime(request.fulfilledAt!)}'}',
+                              style: text.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
           ],
 
           const SizedBox(height: 20),

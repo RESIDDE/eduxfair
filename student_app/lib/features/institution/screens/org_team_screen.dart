@@ -6,6 +6,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/app_back_button.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/user_avatar.dart';
+import '../widgets/org_ui.dart';
 import '../models/org_team_member.dart';
 import '../providers/institution_provider.dart';
 
@@ -48,7 +50,9 @@ class _OrgTeamScreenState extends State<OrgTeamScreen> {
       final results = await Future.wait([
         _service.client
             .from('institution_members')
-            .select('id, member_role, created_at, profile_id, profiles(id, full_name)')
+            .select(
+              'id, member_role, created_at, profile_id, profiles(id, full_name)',
+            )
             .eq('institution_id', institutionId)
             .order('created_at'),
         _service.client
@@ -85,9 +89,14 @@ class _OrgTeamScreenState extends State<OrgTeamScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Remove seat?'),
-        content: Text('Are you sure you want to remove ${member.fullName} from this institution account?'),
+        content: Text(
+          'Are you sure you want to remove ${member.fullName} from this institution account?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: TextButton.styleFrom(foregroundColor: ctx.colors.error),
@@ -101,16 +110,21 @@ class _OrgTeamScreenState extends State<OrgTeamScreen> {
 
     setState(() => _busy = true);
     try {
-      await _service.client.from('institution_members').delete().eq('id', member.id);
+      await _service.client
+          .from('institution_members')
+          .delete()
+          .eq('id', member.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Team member removed.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Team member removed.')));
       _load();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(SupabaseService.describeError(e)), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(SupabaseService.describeError(e)),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -125,199 +139,138 @@ class _OrgTeamScreenState extends State<OrgTeamScreen> {
     final isOwner = provider.managed?.isOwner ?? false;
     final myUserId = _service.userId;
 
+    final used = _members.length;
+    final seats = _seats < used ? used : _seats;
+    final plan = _tier.isEmpty
+        ? ''
+        : '${_tier[0].toUpperCase()}${_tier.substring(1)}';
+
     return Scaffold(
-      appBar: AppBar(
-        leading: const AppBackButton(),
-        title: const Text('Team & seats'),
-        actions: [
-          IconButton(
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
+      appBar: AppBar(leading: const AppBackButton(), title: const Text('Team')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? ErrorState(message: _error!, onRetry: _load)
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                    children: [
-                      // Subscription / Seats Banner
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: colors.surface,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: colors.border),
-                        ),
-                        child: Row(
+          ? ErrorState(message: _error!, onRetry: _load)
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.only(top: 8, bottom: 40),
+                children: [
+                  // Seats, as a meter: one segment per seat, filled for
+                  // each person using one — read at a glance.
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: colors.surface,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: colors.accent.withValues(alpha: 0.12),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.group_outlined, size: 24, color: colors.accent),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${_members.length} of $_seats seats used',
-                                    style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${_tier[0].toUpperCase()}${_tier.substring(1)} plan',
-                                    style: text.bodySmall?.copyWith(color: colors.textSecondary),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: colors.surfaceVariant,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                _tier.toUpperCase(),
-                                style: text.labelSmall?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 14),
-
-                      // Explanatory note
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: colors.surfaceVariant.withValues(alpha: 0.6),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(Icons.info_outline_rounded, size: 18, color: colors.textSecondary),
-                            const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                'Colleagues join by signing up for an institution account in the app. Seat limits are determined by your plan — reach out to Eduxfair to upgrade.',
-                                style: text.bodySmall?.copyWith(height: 1.45, color: colors.textSecondary),
+                                '$used of $seats seats used',
+                                style: text.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
+                            if (plan.isNotEmpty) OrgTag('$plan plan'),
                           ],
                         ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      Text('Team members (${_members.length})', style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
-
-                      ..._members.map((member) {
-                        final isMe = member.profileId == myUserId;
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: colors.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: colors.border),
-                          ),
-                          child: Row(
+                        const SizedBox(height: 12),
+                        if (seats > 12)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: seats == 0 ? 0 : used / seats,
+                              minHeight: 6,
+                              backgroundColor: colors.surfaceVariant,
+                              color: colors.textPrimary,
+                            ),
+                          )
+                        else
+                          Row(
                             children: [
-                              CircleAvatar(
-                                radius: 20,
-                                backgroundColor: colors.surfaceVariant,
-                                child: Text(
-                                  member.fullName.isNotEmpty ? member.fullName[0].toUpperCase() : '?',
-                                  style: text.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            member.fullName,
-                                            style: text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        if (isMe) ...[
-                                          const SizedBox(width: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: colors.accent.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              'you',
-                                              style: text.labelSmall?.copyWith(
-                                                color: colors.accent,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
+                              for (var i = 0; i < seats; i++) ...[
+                                if (i > 0) const SizedBox(width: 4),
+                                Expanded(
+                                  child: Container(
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: i < used
+                                          ? colors.textPrimary
+                                          : colors.surfaceVariant,
+                                      borderRadius: BorderRadius.circular(999),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Added ${formatDate(member.createdAt)}',
-                                      style: text.labelSmall?.copyWith(color: colors.textLight),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: member.isOwner ? colors.successLight : colors.surfaceVariant,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  member.roleLabel,
-                                  style: text.labelSmall?.copyWith(
-                                    color: member.isOwner ? colors.success : colors.textSecondary,
-                                    fontWeight: FontWeight.w700,
                                   ),
-                                ),
-                              ),
-                              if (isOwner && !member.isOwner && !isMe) ...[
-                                const SizedBox(width: 6),
-                                IconButton(
-                                  onPressed: _busy ? null : () => _removeMember(member),
-                                  icon: Icon(Icons.delete_outline_rounded, size: 20, color: colors.error),
-                                  tooltip: 'Remove seat',
                                 ),
                               ],
                             ],
                           ),
-                        );
-                      }),
+                      ],
+                    ),
+                  ),
+                  const OrgNotice(
+                    icon: Icons.info_outline_rounded,
+                    margin: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    message:
+                        'Colleagues join by signing up for an '
+                        'institution account in the app. Your plan sets '
+                        'how many seats you have — contact Eduxfair to add '
+                        'more.',
+                  ),
+                  OrgSectionLabel('Members', count: _members.length),
+                  OrgGroup(
+                    children: [
+                      for (final member in _members)
+                        Builder(
+                          builder: (context) {
+                            final isMe = member.profileId == myUserId;
+                            final initials = member.fullName
+                                .split(RegExp(r'\s+'))
+                                .where((w) => w.isNotEmpty)
+                                .take(2)
+                                .map((w) => w[0].toUpperCase())
+                                .join();
+                            return OrgRow(
+                              leading: UserAvatar(
+                                initials: initials.isEmpty ? '?' : initials,
+                                size: 44,
+                              ),
+                              title: isMe
+                                  ? '${member.fullName} (you)'
+                                  : member.fullName,
+                              subtitle:
+                                  '${member.roleLabel} · added '
+                                  '${formatDate(member.createdAt)}',
+                              trailing: isOwner && !member.isOwner && !isMe
+                                  ? IconButton(
+                                      onPressed: _busy
+                                          ? null
+                                          : () => _removeMember(member),
+                                      icon: Icon(
+                                        Icons.person_remove_outlined,
+                                        size: 20,
+                                        color: colors.error,
+                                      ),
+                                      tooltip: 'Remove from the team',
+                                    )
+                                  : (member.isOwner
+                                        ? const OrgTag('Owner')
+                                        : null),
+                            );
+                          },
+                        ),
                     ],
                   ),
-                ),
+                ],
+              ),
+            ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -7,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_back_button.dart';
 import '../../../core/widgets/custom_text_field.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../widgets/org_ui.dart';
 import '../models/matched_student.dart';
 import '../providers/institution_provider.dart';
 
@@ -143,11 +145,11 @@ class _OrgStudentsScreenState extends State<OrgStudentsScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: colors.accent.withValues(alpha: 0.12),
+                      color: colors.surfaceVariant,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.auto_awesome_rounded,
-                        color: colors.accent, size: 20),
+                    child: Icon(Icons.mail_outline_rounded,
+                        color: colors.textPrimary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -290,86 +292,39 @@ class _OrgStudentsScreenState extends State<OrgStudentsScreen> {
       appBar: AppBar(
         leading: const AppBackButton(),
         title: const Text('Matched students'),
-        actions: [
-          IconButton(
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
-          ),
-          const SizedBox(width: 4),
-        ],
       ),
       body: Column(
         children: [
-          // Filter Bar
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border(bottom: BorderSide(color: colors.divider)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String?>(
-                        initialValue: _selectedProgramId,
-                        decoration: InputDecoration(
-                          labelText: 'Program',
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          isDense: true,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        items: [
-                          const DropdownMenuItem<String?>(
-                            value: null,
-                            child: Text('All programs', overflow: TextOverflow.ellipsis),
-                          ),
-                          ..._programs.map(
-                            (p) => DropdownMenuItem<String?>(
-                              value: p['id'] as String,
-                              child: Text(p['name'] as String? ?? 'Program',
-                                  overflow: TextOverflow.ellipsis),
-                            ),
-                          ),
-                        ],
-                        onChanged: (val) {
-                          setState(() => _selectedProgramId = val);
-                          _load();
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: colors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<int>(
-                          value: _minScore,
-                          items: const [
-                            DropdownMenuItem(value: 40, child: Text('40%+ fit')),
-                            DropdownMenuItem(value: 60, child: Text('60%+ fit')),
-                            DropdownMenuItem(value: 80, child: Text('80%+ fit')),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() => _minScore = val);
-                              _load();
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          // Two rows of pills rather than two dropdown fields: every option is
+          // visible, and changing one is a single tap rather than three.
+          const SizedBox(height: 4),
+          OrgFilterBar<String?>(
+            selected: _selectedProgramId,
+            onSelected: (v) {
+              setState(() => _selectedProgramId = v);
+              _load();
+            },
+            options: [
+              (null, 'All programmes'),
+              for (final p in _programs)
+                (p['id'] as String, p['name'] as String? ?? 'Programme'),
+            ],
           ),
+          const SizedBox(height: 8),
+          OrgFilterBar<int>(
+            selected: _minScore,
+            onSelected: (v) {
+              setState(() => _minScore = v);
+              _load();
+            },
+            options: const [
+              (40, 'Any fit'),
+              (60, '60% fit or more'),
+              (80, '80% fit or more'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Divider(height: 1, color: colors.divider),
 
           // Content
           Expanded(
@@ -379,7 +334,7 @@ class _OrgStudentsScreenState extends State<OrgStudentsScreen> {
                     ? ErrorState(message: _error!, onRetry: _load)
                     : candidates.isEmpty
                         ? EmptyState(
-                            icon: Icons.auto_awesome_outlined,
+                            icon: Icons.person_search_outlined,
                             title: 'No matches found',
                             message: _minScore > 40
                                 ? 'Try lowering the minimum match score to see more candidates.'
@@ -388,9 +343,9 @@ class _OrgStudentsScreenState extends State<OrgStudentsScreen> {
                         : RefreshIndicator(
                             onRefresh: _load,
                             child: ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
                               itemCount: candidates.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 14),
+                              separatorBuilder: (_, __) => const SizedBox(height: 12),
                               itemBuilder: (context, index) {
                                 final card = candidates[index];
                                 return _CandidateCard(
@@ -434,231 +389,157 @@ class _CandidateCard extends StatelessWidget {
     final colors = context.colors;
     final text = Theme.of(context).textTheme;
     final scoreColor = _scoreColor(context, card.score);
+    final token = card.token.length >= 6
+        ? card.token.substring(0, 6).toUpperCase()
+        : card.token.toUpperCase();
+    final name = card.isShared && card.sharedName != null
+        ? card.sharedName!
+        : 'Student $token';
+    final initials = name
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
+
+    final facts = <String>[
+      if (card.currentCountry != null) countryLabel(card.currentCountry),
+      if (card.targetLevels.isNotEmpty)
+        card.targetLevels
+            .map((l) => AppConstants.studyLevels[l] ?? l)
+            .join(', '),
+      if (card.gradeBand != null) 'Grades ${card.gradeBand}',
+      if (card.englishBand != null) 'English ${card.englishBand}',
+      if (card.budgetBand != null) card.budgetBand!,
+      if (card.intendedIntake != null) card.intendedIntake!,
+    ];
 
     return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colors.border),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Row: Score Badge & Title
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: scoreColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: scoreColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.auto_awesome_rounded, size: 14, color: scoreColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${card.score}% match',
-                        style: text.labelSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: scoreColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        card.isShared && card.sharedName != null
-                            ? card.sharedName!
-                            : 'Candidate · ${card.token.length > 8 ? card.token.substring(0, 8) : card.token}',
-                        style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      Text(
-                        card.programName,
-                        style: text.bodySmall?.copyWith(color: colors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-                if (card.isShared)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: colors.successLight,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'Passport shared',
-                      style: text.labelSmall?.copyWith(color: colors.success, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-              ],
-            ),
-
-            const SizedBox(height: 14),
-
-            // Profile Attributes Chips
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                if (card.currentCountry != null)
-                  _Pill(
-                    icon: Icons.public_rounded,
-                    label: AppConstants.homeCountries[card.currentCountry] ?? card.currentCountry!,
-                  ),
-                if (card.targetLevels.isNotEmpty)
-                  _Pill(
-                    icon: Icons.school_outlined,
-                    label: card.targetLevels.map((l) => AppConstants.studyLevels[l] ?? l).join(', '),
-                  ),
-                if (card.gradeBand != null)
-                  _Pill(icon: Icons.grade_outlined, label: 'Grades: ${card.gradeBand}'),
-                if (card.budgetBand != null)
-                  _Pill(icon: Icons.payments_outlined, label: card.budgetBand!),
-                if (card.intendedIntake != null)
-                  _Pill(icon: Icons.calendar_today_outlined, label: card.intendedIntake!),
-                if (card.englishBand != null)
-                  _Pill(icon: Icons.translate_rounded, label: 'English: ${card.englishBand}'),
-              ],
-            ),
-
-            if (card.reasons.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: colors.surfaceVariant.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(10),
-                ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              StudentMark(
+                isShared: card.isShared,
+                initials: initials.isEmpty ? '?' : initials,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'MATCH REASONS',
-                      style: text.labelSmall?.copyWith(
-                        color: colors.textSecondary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
+                    Text(name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.bodyLarge
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                    Text(card.programName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.bodySmall
+                            ?.copyWith(color: colors.textSecondary)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              // The fit as a ring: the one number on the card that is a
+              // judgement, so it is the one place colour is used.
+              SizedBox.square(
+                dimension: 46,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox.expand(
+                      child: CircularProgressIndicator(
+                        value: (card.score / 100).clamp(0.0, 1.0),
+                        strokeWidth: 3.5,
+                        backgroundColor: colors.surfaceVariant,
+                        color: scoreColor,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      card.reasons.join(' · '),
-                      style: text.bodySmall?.copyWith(color: colors.textPrimary),
-                    ),
+                    Text('${card.score}%',
+                        style: text.labelMedium
+                            ?.copyWith(fontWeight: FontWeight.w700)),
                   ],
                 ),
               ),
             ],
-
-            const SizedBox(height: 16),
-
-            // Actions
-            Row(
-              children: [
-                if (!card.alreadyActioned) ...[
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: isBusy ? null : onInvite,
-                      icon: const Icon(Icons.send_rounded, size: 16),
-                      label: const Text('Invite to apply'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(0, 42),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ] else ...[
-                  Expanded(
-                    child: Container(
-                      height: 42,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: colors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.check_circle_outline_rounded,
-                              size: 16, color: colors.success),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Invited',
-                            style: text.labelMedium?.copyWith(
-                              color: colors.success,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                if (!card.isShared)
-                  OutlinedButton.icon(
-                    onPressed: isBusy ? null : onRequestAccess,
-                    icon: const Icon(Icons.badge_outlined, size: 16),
-                    label: const Text('Request passport'),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(0, 42),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                    ),
-                  ),
-              ],
+          ),
+          if (facts.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [for (final f in facts) OrgTag(f)],
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _Pill({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final text = Theme.of(context).textTheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: colors.surfaceVariant,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: colors.textSecondary),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              label,
-              style: text.labelSmall?.copyWith(color: colors.textPrimary),
-              overflow: TextOverflow.ellipsis,
-            ),
+          if (card.reasons.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('Why they match',
+                style: text.labelMedium?.copyWith(color: colors.textSecondary)),
+            const SizedBox(height: 4),
+            for (final reason in card.reasons.take(4))
+              Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Icon(Icons.check_rounded,
+                          size: 15, color: colors.success),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(reason,
+                          style: text.bodySmall?.copyWith(height: 1.35)),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: card.alreadyActioned
+                    ? OrgPillButton(
+                        label: 'Invited',
+                        icon: Icons.check_rounded,
+                        tone: colors.success,
+                      )
+                    : OrgPillButton(
+                        label: 'Invite to apply',
+                        primary: true,
+                        onTap: isBusy ? null : onInvite,
+                      ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: card.isShared
+                    ? OrgPillButton(
+                        label: 'View passport',
+                        onTap: () => context.push(
+                            '${AppConstants.routeOrgStudent}/${card.token}'),
+                      )
+                    : OrgPillButton(
+                        label: 'Request passport',
+                        onTap: isBusy ? null : onRequestAccess,
+                      ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 }
+
+

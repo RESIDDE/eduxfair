@@ -741,7 +741,7 @@ async function main() {
     { ...S, method: 'POST', body: { expiresIn: 3600 } });
 
   if (signed?.signedURL) {
-    const fetched = await fetch(`${BASE}${signed.signedURL}`);
+    const fetched = await fetch(`${BASE}/storage/v1${signed.signedURL}`);
     const content = await fetched.text();
     if (fetched.ok && content.includes('smoke test transcript')) {
       ok('the signed URL serves the bytes back');

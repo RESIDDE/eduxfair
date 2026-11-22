@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { BadgeCheck, Building2, ShieldX } from 'lucide-react';
 import {
   Alert,
@@ -19,6 +20,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useQuery } from '../../lib/hooks';
 import { describeError, supabase } from '../../lib/supabase';
+import { decideVerification } from '../../lib/verification';
 import { formatDate } from '../../lib/format';
 import { countryName, INSTITUTION_TIERS } from '../../lib/vocab';
 
@@ -64,51 +66,12 @@ export default function AdminInstitutionsPage() {
    */
   async function decide(institution, status) {
     setActionError(null);
-
-    const evidence = {
-      method: 'admin_decision',
-      decided_by: profile?.full_name ?? 'an administrator',
-      decided_at: new Date().toISOString(),
-      attests: 'an Eduxfair administrator confirmed this listing by hand',
-      does_not_attest:
-        'accreditation, programme quality, or partnership with Eduxfair',
-    };
-
-    const { data: open } = await supabase
-      .from('verifications')
-      .select('id')
-      .eq('subject_type', 'institution')
-      .eq('subject_id', institution.id)
-      .eq('status', 'pending')
-      .maybeSingle();
-
-    let rowId = open?.id;
-
-    if (!rowId) {
-      const { data: created, error: insertError } = await supabase
-        .from('verifications')
-        .insert({
-          subject_type: 'institution',
-          subject_id: institution.id,
-          status: 'pending',
-          evidence,
-        })
-        .select('id')
-        .single();
-
-      if (insertError) {
-        setDeciding(null);
-        setActionError(describeError(insertError));
-        return;
-      }
-      rowId = created.id;
-    }
-
-    const { error: writeError } = await supabase
-      .from('verifications')
-      .update({ status, evidence, reviewer_id: profile?.id })
-      .eq('id', rowId);
-
+    const writeError = await decideVerification({
+      subjectType: 'institution',
+      subjectId: institution.id,
+      status,
+      reviewer: profile,
+    });
     setDeciding(null);
     if (writeError) setActionError(describeError(writeError));
     await reload();
@@ -162,7 +125,14 @@ export default function AdminInstitutionsPage() {
             const subscription = institution.institution_subscriptions?.[0] ?? null;
             return (
               <Tr key={institution.id}>
-                <Td className="font-semibold">{institution.name}</Td>
+                <Td className="font-semibold">
+                  <Link
+                    to={`/admin/institutions/${institution.id}`}
+                    className="hover:text-accent transition-colors"
+                  >
+                    {institution.name}
+                  </Link>
+                </Td>
                 <Td>{countryName(institution.country)}</Td>
                 <Td className="font-mono text-[12px]">
                   {institution.email_domain ?? '—'}

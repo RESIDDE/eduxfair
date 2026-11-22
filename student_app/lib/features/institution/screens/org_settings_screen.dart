@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/supabase/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_back_button.dart';
 import '../../../core/utils/profile_photo_sheet.dart';
 import '../../../core/widgets/custom_button.dart';
 import '../../../core/widgets/custom_text_field.dart';
@@ -28,7 +29,10 @@ class OrgSettingsScreen extends StatelessWidget {
     final institution = institutions.institution;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        title: const Text('Listing and verification'),
+      ),
       body: institution == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(

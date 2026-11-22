@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/settings_section.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/app_back_button.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/pressable.dart';
 import '../models/pipeline.dart';
 import '../providers/org_desk_provider.dart';
+import '../widgets/org_ui.dart';
 
 /// Every application to this institution, grouped by the stage it is at.
 ///
@@ -24,6 +27,9 @@ class OrgPipelineScreen extends StatefulWidget {
 }
 
 class _OrgPipelineScreenState extends State<OrgPipelineScreen> {
+  /// Null for every stage; otherwise one stage.
+  String? _stage;
+
   @override
   void initState() {
     super.initState();
@@ -35,14 +41,16 @@ class _OrgPipelineScreenState extends State<OrgPipelineScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final text = Theme.of(context).textTheme;
     final desk = context.watch<OrgDeskProvider>();
     final grouped = desk.byStage;
+    final shown = _stage == null
+        ? grouped
+        : {if (grouped[_stage] != null) _stage!: grouped[_stage]!};
 
     return Scaffold(
       appBar: AppBar(
         leading: const AppBackButton(),
-        title: const Text('Pipeline'),
+        title: const Text('Applications'),
       ),
       body: desk.loading && desk.applications.isEmpty
           ? const Center(child: CircularProgressIndicator())
@@ -59,47 +67,39 @@ class _OrgPipelineScreenState extends State<OrgPipelineScreen> {
                   : RefreshIndicator(
                       onRefresh: desk.load,
                       child: ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 90),
+                        padding: const EdgeInsets.only(top: 4, bottom: 40),
                         children: [
+                          // Stages as filters: an officer usually works one
+                          // column at a time, and a long scroll through every
+                          // stage hides the one they came for.
+                          OrgFilterBar<String?>(
+                            selected: _stage,
+                            onSelected: (v) => setState(() => _stage = v),
+                            options: [
+                              (null, 'All ${desk.applications.length}'),
+                              for (final e in grouped.entries)
+                                (e.key, '${stageLabel(e.key)} ${e.value.length}'),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
                           if (desk.needingAttention > 0)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: colors.warningLight,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Text(
-                                  '${desk.needingAttention} '
+                            OrgNotice(
+                              icon: Icons.circle,
+                              tone: colors.warning,
+                              message: '${desk.needingAttention} '
                                   '${desk.needingAttention == 1 ? 'application needs' : 'applications need'}'
                                   ' a look — newly submitted, or waiting on a '
                                   'document you asked for.',
-                                  style: text.bodySmall?.copyWith(height: 1.4),
-                                ),
-                              ),
                             ),
-                          for (final entry in grouped.entries) ...[
-                            Padding(
-                              padding:
-                                  const EdgeInsets.fromLTRB(2, 10, 2, 8),
-                              child: Row(
-                                children: [
-                                  Text(stageLabel(entry.key),
-                                      style: text.titleSmall?.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                          color: colors.textPrimary)),
-                                  const SizedBox(width: 8),
-                                  Text('${entry.value.length}',
-                                      style: text.labelSmall),
-                                ],
-                              ),
+                          for (final entry in shown.entries) ...[
+                            OrgSectionLabel(stageLabel(entry.key),
+                                count: entry.value.length),
+                            OrgGroup(
+                              children: [
+                                for (final application in entry.value)
+                                  _ApplicationRow(entry: application),
+                              ],
                             ),
-                            for (final application in entry.value)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: _ApplicationCard(entry: application),
-                              ),
                           ],
                         ],
                       ),
@@ -108,111 +108,49 @@ class _OrgPipelineScreenState extends State<OrgPipelineScreen> {
   }
 }
 
-class _ApplicationCard extends StatelessWidget {
+class _ApplicationRow extends StatelessWidget {
   final PipelineEntry entry;
 
-  const _ApplicationCard({required this.entry});
+  const _ApplicationRow({required this.entry});
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final text = Theme.of(context).textTheme;
+    final country = countryLabel(entry.currentCountry);
 
-    return Pressable.surface(
-      haptic: null,
-      borderRadius: BorderRadius.circular(18),
+    return OrgRow(
       onTap: () => _openSheet(context, entry),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: entry.needsAttention ? colors.warning : colors.border,
+      leading: StudentMark(
+        isShared: entry.isShared,
+        avatarUrl: entry.sharedAvatarUrl,
+        initials: entry.initials,
+      ),
+      title: entry.displayName,
+      emphasised: entry.needsAttention || entry.stage == 'submitted',
+      meta: formatRelative(entry.updatedAt),
+      subtitle: '${entry.programName}'
+          '${entry.intake == null ? '' : ' · ${entry.intake}'}',
+      tags: [
+        if (entry.outstandingRequests > 0)
+          OrgTag(
+            entry.outstandingRequests == 1
+                ? 'Document awaited'
+                : '${entry.outstandingRequests} documents awaited',
+            tone: colors.warning,
+            icon: Icons.schedule_rounded,
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(entry.displayName,
-                      style: text.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                ),
-                if (!entry.isShared)
-                  Icon(Icons.lock_outline_rounded,
-                      size: 15, color: colors.textLight),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${entry.programName}'
-              '${entry.intake == null ? '' : ' · ${entry.intake}'}',
-              style: text.bodySmall,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                if (entry.gradeBand != null) _Chip(label: entry.gradeBand!),
-                if (entry.englishBand != null)
-                  _Chip(label: 'English ${entry.englishBand}'),
-                if (entry.currentCountry != null)
-                  _Chip(label: entry.currentCountry!),
-                if (entry.documentCount > 0)
-                  _Chip(label: '${entry.documentCount} docs'),
-                if (entry.outstandingRequests > 0)
-                  _Chip(
-                    label: '${entry.outstandingRequests} awaited',
-                    tone: colors.warning,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text('Updated ${formatRelative(entry.updatedAt)}',
-                style: text.labelSmall),
-          ],
-        ),
-      ),
+        if (entry.gradeBand != null) OrgTag(entry.gradeBand!),
+        if (entry.englishBand != null) OrgTag('English ${entry.englishBand}'),
+        if (country.isNotEmpty) OrgTag(country),
+        if (entry.documentCount > 0)
+          OrgTag(entry.documentCount == 1
+              ? '1 document'
+              : '${entry.documentCount} documents'),
+      ],
     );
   }
 }
 
-class _Chip extends StatelessWidget {
-  final String label;
-  final Color? tone;
-
-  const _Chip({required this.label, this.tone});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final colour = tone ?? colors.textSecondary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: colour.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context)
-            .textTheme
-            .labelSmall
-            ?.copyWith(color: colour, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
-/// Everything you can do to one application, in one sheet.
 Future<void> _openSheet(BuildContext context, PipelineEntry entry) async {
   await showModalBottomSheet<void>(
     context: context,
@@ -232,65 +170,122 @@ class _ApplicationSheet extends StatelessWidget {
     final colors = context.colors;
     final text = Theme.of(context).textTheme;
     final desk = context.watch<OrgDeskProvider>();
+    final note = (entry.studentNote ?? '').trim();
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(entry.displayName, style: text.headlineSmall),
-            Text('${entry.programName} · ${stageLabel(entry.stage)}',
-                style: text.bodySmall),
-            if (!entry.isShared) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'This student has not shared their passport, so their name '
-                  'and documents stay hidden. You can still review, request '
-                  'documents and make an offer.',
-                  style: text.bodySmall?.copyWith(height: 1.45),
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+              child: Row(
+                children: [
+                  StudentMark(
+                    isShared: entry.isShared,
+                    avatarUrl: entry.sharedAvatarUrl,
+                    initials: entry.initials,
+                    size: 52,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(entry.displayName,
+                            style: text.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w700)),
+                        Text(
+                          '${entry.programName}'
+                          '${entry.intake == null ? '' : ' · ${entry.intake}'}',
+                          style: text.bodySmall
+                              ?.copyWith(color: colors.textSecondary),
+                        ),
+                        const SizedBox(height: 6),
+                        OrgTag(stageLabel(entry.stage)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!entry.isShared)
+              const OrgNotice(
+                icon: Icons.lock_outline_rounded,
+                margin: EdgeInsets.fromLTRB(16, 16, 16, 0),
+                message: 'They have not shared their passport, so their name '
+                    'stays hidden. You can still review, request documents and '
+                    'make an offer.',
+              ),
+            if (note.isNotEmpty) ...[
+              const OrgSectionLabel('Their note'),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(note,
+                    style: text.bodyMedium?.copyWith(height: 1.45)),
               ),
             ],
-            if ((entry.studentNote ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text('Their note', style: text.titleSmall),
-              const SizedBox(height: 4),
-              Text(entry.studentNote!.trim(),
-                  style: text.bodySmall?.copyWith(height: 1.45)),
-            ],
-            const SizedBox(height: 18),
-            Text('Move to', style: text.titleSmall),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final stage in pipelineStages)
-                  if (stage != entry.stage)
-                    ActionChip(
-                      label: Text(stageLabel(stage)),
-                      onPressed: desk.busy
-                          ? null
-                          : () => _move(context, entry, stage),
-                    ),
+            SettingsSection(
+              rows: [
+                SettingsRow(
+                  icon: entry.isShared
+                      ? Icons.badge_outlined
+                      : Icons.folder_open_outlined,
+                  label: entry.isShared
+                      ? 'View passport & documents'
+                      : 'View documents they sent',
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.push(
+                        '${AppConstants.routeOrgStudent}/${entry.token}');
+                  },
+                ),
+                SettingsRow(
+                  icon: Icons.upload_file_outlined,
+                  label: 'Request a document',
+                  value: entry.outstandingRequests > 0
+                      ? '${entry.outstandingRequests} awaited'
+                      : null,
+                  onTap: desk.busy ? null : () => _askForDocument(context, entry),
+                ),
               ],
             ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed:
-                    desk.busy ? null : () => _askForDocument(context, entry),
-                icon: const Icon(Icons.description_outlined, size: 18),
-                label: const Text('Request a document'),
+            const OrgSectionLabel('Move to'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final stage in pipelineStages)
+                    if (stage != entry.stage)
+                      Pressable(
+                        onTap: desk.busy
+                            ? null
+                            : () => _move(context, entry, stage),
+                        semanticLabel: 'Move to ${stageLabel(stage)}',
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: colors.surfaceVariant,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            stageLabel(stage),
+                            style: text.labelLarge?.copyWith(
+                              color: stage == 'rejected'
+                                  ? colors.error
+                                  : colors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                ],
               ),
             ),
           ],

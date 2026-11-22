@@ -35,6 +35,8 @@ import 'features/institution/screens/org_profile_screen.dart';
 import 'features/institution/screens/org_programs_screen.dart';
 import 'features/institution/screens/org_settings_screen.dart';
 import 'features/institution/screens/org_spaces_screen.dart';
+import 'features/institution/screens/org_student_passport_screen.dart';
+import 'features/institution/screens/org_students_only_screen.dart';
 import 'features/institution/screens/org_students_screen.dart';
 import 'features/institution/screens/org_team_screen.dart';
 import 'features/meet/call/call_provider.dart';
@@ -139,12 +141,23 @@ GoRouter _buildRouter(AuthProvider auth, InstitutionProvider institutions) =>
       redirect: (context, state) {
         final location = state.matchedLocation;
 
-        const open = {
-          // Readable signed out: the sign-up screen links to them, and
-          // guideline 5.1.1(i) wants the privacy policy easy to reach.
+        // Readable by everyone, signed in or out: the sign-up screen links to
+        // them, Profile links to them, and guideline 5.1.1(i) wants the
+        // privacy policy easy to reach.
+        //
+        // Kept apart from the auth screens below on purpose. They used to sit
+        // in the same set, so the "signed in on an auth screen → feed" rule
+        // caught them too: a signed-in tap on Terms was redirected to /feed,
+        // and since it was a `push`, that put a second copy of the tab shell's
+        // page on the root Navigator — duplicate page key, red screen.
+        const legal = {
           AppConstants.routePrivacy,
           AppConstants.routeTerms,
           AppConstants.routeGuidelines,
+        };
+
+        const open = {
+          ...legal,
           AppConstants.routeSplash,
           AppConstants.routeOnboarding,
           AppConstants.routeLogin,
@@ -160,6 +173,7 @@ GoRouter _buildRouter(AuthProvider auth, InstitutionProvider institutions) =>
         if (auth.status == AuthStatus.unknown) return null;
 
         final isOpen = open.contains(location);
+        final isLegal = legal.contains(location);
 
         if (!auth.isSignedIn && !isOpen) return AppConstants.routeLogin;
 
@@ -173,7 +187,7 @@ GoRouter _buildRouter(AuthProvider auth, InstitutionProvider institutions) =>
 
         // Custom OTP verification guard: unverified accounts are held at /otp.
         if (auth.isSignedIn && user != null && !user.isEmailVerified) {
-          if (location == AppConstants.routeOtp) return null;
+          if (location == AppConstants.routeOtp || isLegal) return null;
           final email = Uri.encodeComponent(auth.email ?? '');
           return '${AppConstants.routeOtp}?email=$email';
         }
@@ -193,12 +207,39 @@ GoRouter _buildRouter(AuthProvider auth, InstitutionProvider institutions) =>
         final staffMayLeaveShell = location == AppConstants.routeCompose ||
             location.startsWith('${AppConstants.routePost}/') ||
             location == AppConstants.routeProfile ||
+            // Everything Profile links to that is not student-only: the
+            // policies, the block list and account deletion (guideline
+            // 5.1.1(v) applies to staff accounts as much as to students).
+            isLegal ||
+            location == AppConstants.routeBlocked ||
+            location == AppConstants.routeDeleteAccount ||
             location.startsWith('${AppConstants.routeInstitution}/') ||
+            // Opened from their own page's preview. Read-only for staff: the
+            // screen hides the student actions (apply, ask, meet).
+            location.startsWith('${AppConstants.routeProgram}/') ||
             location.startsWith('${AppConstants.routeHandle}/') ||
             location.startsWith(AppConstants.routeStudentFollowers) ||
             // A call room is the same screen for staff and students, and the
             // role inside it comes from the token rather than the route.
             location.startsWith('${AppConstants.routeCall}/');
+
+        // Where staff go when they reach a student screen. A student tab, a
+        // sign-in screen or the splash means "take me home", and that arrives
+        // by `go`. Anything else is a link someone tapped, which arrives by
+        // `push` — and pushing the dashboard (a tab-shell page that is already
+        // on the stack) crashes with a duplicate page key, the red screen. So
+        // those get an ordinary page that is safe to push.
+        const studentTabs = {
+          AppConstants.routeFeed,
+          AppConstants.routeDiscover,
+          AppConstants.routeSpaces,
+          AppConstants.routeNotifications,
+          AppConstants.routeMessages,
+          AppConstants.routeHome,
+        };
+        final staffElsewhere = isOpen || studentTabs.contains(location)
+            ? AppConstants.routeOrgHome
+            : AppConstants.routeOrgStudentsOnly;
 
         if (auth.isSignedIn && isStaff) {
           // Wait rather than guess about WHICH org screen: before the first
@@ -213,9 +254,7 @@ GoRouter _buildRouter(AuthProvider auth, InstitutionProvider institutions) =>
           // are staff, so move them into the org shell now and let the slower
           // question (dashboard or setup?) be answered a moment later.
           if (!institutions.isResolved) {
-            return (inOrgShell || staffMayLeaveShell)
-                ? null
-                : AppConstants.routeOrgHome;
+            return (inOrgShell || staffMayLeaveShell) ? null : staffElsewhere;
           }
 
           // Staff with no institution yet have nothing to show a dashboard
@@ -229,7 +268,7 @@ GoRouter _buildRouter(AuthProvider auth, InstitutionProvider institutions) =>
             return AppConstants.routeOrgHome;
           }
           if (!inOrgShell && !staffMayLeaveShell) {
-            return AppConstants.routeOrgHome;
+            return staffElsewhere;
           }
           return null;
         }
@@ -239,7 +278,10 @@ GoRouter _buildRouter(AuthProvider auth, InstitutionProvider institutions) =>
 
         // Signed in but sitting on an auth screen: send them home. The splash
         // route is excluded so its own routing is not fought over.
-        if (auth.isSignedIn && isOpen && location != AppConstants.routeSplash) {
+        if (auth.isSignedIn &&
+            isOpen &&
+            !isLegal &&
+            location != AppConstants.routeSplash) {
           return AppConstants.routeFeed;
         }
 
@@ -336,6 +378,20 @@ GoRouter _buildRouter(AuthProvider auth, InstitutionProvider institutions) =>
           path: AppConstants.routeOrgFollowers,
           parentNavigatorKey: _rootKey,
           builder: (_, __) => const OrgFollowersScreen(),
+        ),
+        // Keyed by match token, never student id: the screens that open it
+        // only ever hold the token, and the database decides from the share
+        // how much of the student comes back.
+        GoRoute(
+          path: AppConstants.routeOrgStudentsOnly,
+          parentNavigatorKey: _rootKey,
+          builder: (_, __) => const OrgStudentsOnlyScreen(),
+        ),
+        GoRoute(
+          path: '${AppConstants.routeOrgStudent}/:token',
+          parentNavigatorKey: _rootKey,
+          builder: (_, state) =>
+              OrgStudentPassportScreen(token: state.pathParameters['token']!),
         ),
 
         // ── The institution shell ─────────────────────────────────────────

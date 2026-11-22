@@ -87,7 +87,11 @@ export async function createSignedUrl({ claims, bucket, name, expiresIn }) {
     ),
   );
 
-  return `/storage/v1/object/sign/${bucket}/${name}?token=${token}`;
+  // Relative to /storage/v1, as hosted Supabase returns it. Both supabase-js
+  // and the Dart storage client prepend their storage URL to this, so a path
+  // that already carried /storage/v1 came out doubled and every signed link
+  // 404'd — a student could not open their own transcript locally.
+  return `/object/sign/${bucket}/${name}?token=${token}`;
 }
 
 export async function readSigned(token) {
@@ -99,6 +103,31 @@ export async function readSigned(token) {
            on b.bucket_id = s.bucket_id and b.name = s.name
         where s.token = $1 and s.expires_at > now()`,
       [token],
+    );
+    return found.rows[0] ?? null;
+  });
+}
+
+/**
+ * An authenticated download: `GET /object/<bucket>/<path>` with the caller's
+ * own token, as `storage.from(bucket).download(path)` sends it. The storage
+ * policies decide, exactly as they do for creating a signed URL — the row is
+ * looked up as the caller, so a file they may not see is simply not found.
+ */
+export async function readAuthenticated(claims, bucket, name) {
+  const visible = await asRole(claims, async ({ query }) => {
+    const found = await query(
+      'select id from storage.objects where bucket_id = $1 and name = $2',
+      [bucket, name],
+    );
+    return found.rows.length > 0;
+  });
+  if (!visible) return null;
+
+  return asService(async ({ query }) => {
+    const found = await query(
+      'select bucket_id, name, mime, bytes from storage.object_bytes where bucket_id = $1 and name = $2',
+      [bucket, name],
     );
     return found.rows[0] ?? null;
   });

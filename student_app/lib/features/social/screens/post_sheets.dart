@@ -397,6 +397,9 @@ const _reportReasons = <String, String>{
 /// One list rather than one per surface, so a post, a comment and an account
 /// are all reported against the same taxonomy — which is what makes the
 /// moderation queue sortable.
+/// Public so the chat screen reports against the same list.
+Future<String?> pickReportReason(BuildContext context) => _pickReportReason(context);
+
 Future<String?> _pickReportReason(BuildContext context) =>
     showModalBottomSheet<String>(
       context: context,

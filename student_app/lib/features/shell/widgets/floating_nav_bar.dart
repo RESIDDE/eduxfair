@@ -26,12 +26,19 @@ class FloatingNavBar extends StatelessWidget {
   /// 0 = expanded, 1 = compact.
   final double collapse;
 
+  /// The tabs to draw. Defaults to the student shell's [items]; the
+  /// institution shell passes its own, so both sides share one bar — the same
+  /// material, the same press response, the same collapse — rather than two
+  /// that drift apart.
+  final List<(IconData, IconData, String)>? tabs;
+
   const FloatingNavBar({
     super.key,
     required this.currentIndex,
     required this.onTap,
     this.badges = const {},
     this.collapse = 0,
+    this.tabs,
   });
 
   static const items = <(IconData, IconData, String)>[
@@ -49,6 +56,7 @@ class FloatingNavBar extends StatelessWidget {
     final inset = lerpDouble(12, 72, t)!;
     final height = context.scaled(lerpDouble(AppChrome.navBarHeight, 44, t)!);
     final iconSize = lerpDouble(26, 22, t)!;
+    final items = tabs ?? FloatingNavBar.items;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(inset, 0, inset, AppChrome.navBarInset),

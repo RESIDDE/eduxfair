@@ -1,16 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../core/constants/app_constants.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_back_button.dart';
 import '../../../core/widgets/empty_state.dart';
-import '../../../core/widgets/user_avatar.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../messages/screens/chat_screen.dart';
 import '../models/pipeline.dart';
 import '../providers/org_desk_provider.dart';
+import '../widgets/org_ui.dart';
 
 /// The institution's side of messaging.
 ///
@@ -65,7 +67,6 @@ class _OrgInboxScreenState extends State<OrgInboxScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
     final desk = context.watch<OrgDeskProvider>();
     final archivedCount = desk.archivedCount;
 
@@ -78,35 +79,7 @@ class _OrgInboxScreenState extends State<OrgInboxScreen> {
           bottom: TabBar(
             tabs: [
               const Tab(text: 'Open'),
-              Tab(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Archived'),
-                    if (archivedCount > 0) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.textSecondary.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          '$archivedCount',
-                          style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+              Tab(text: archivedCount > 0 ? 'Archived  $archivedCount' : 'Archived'),
             ],
           ),
         ),
@@ -222,8 +195,7 @@ class _ThreadList extends StatelessWidget {
         separatorBuilder: (_, __) => Divider(
           height: 1,
           color: colors.divider,
-          indent: 20,
-          endIndent: 20,
+          indent: 78,
         ),
         itemBuilder: (_, i) => _Thread(thread: rows[i]),
       ),
@@ -244,6 +216,18 @@ class _Thread extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ListTile(
+              leading: Icon(thread.isShared
+                  ? Icons.badge_outlined
+                  : Icons.folder_open_outlined),
+              title: Text(thread.isShared
+                  ? 'View passport & documents'
+                  : 'View documents they sent'),
+              onTap: () {
+                Navigator.of(sheet).pop();
+                context.push('${AppConstants.routeOrgStudent}/${thread.token}');
+              },
+            ),
             ListTile(
               leading: Icon(
                 thread.isPinned
@@ -300,144 +284,137 @@ class _Thread extends StatelessWidget {
         ? match
         : thread.lastMessageBody ?? 'No messages yet';
 
-    return Pressable.surface(
-      haptic: null,
-      onLongPress: () => _actions(context, thread),
-      onTap: () async {
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ChatScreen(
-              conversationId: thread.conversationId,
-              title: thread.displayName,
-              // Null until they share, like the name beside it.
-              avatarUrl: thread.sharedAvatarUrl,
-            ),
-          ),
-        );
-        if (context.mounted) {
-          context.read<OrgDeskProvider>().load();
-        }
+    // The same row as the student's Messages list: a round face (or the
+    // padlock), the name, one line of the last message, the time and an
+    // unread dot — and a swipe to archive.
+    return Dismissible(
+      key: ValueKey(thread.conversationId),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 24),
+        color: colors.surfaceVariant,
+        child: Icon(
+          thread.isArchived
+              ? Icons.unarchive_outlined
+              : Icons.archive_outlined,
+          color: colors.textSecondary,
+        ),
+      ),
+      // The row moves to the other tab rather than animating away, so the
+      // dismissal itself is always declined.
+      confirmDismiss: (_) async {
+        await context
+            .read<OrgDeskProvider>()
+            .setThreadState(thread.conversationId, archived: !thread.isArchived);
+        return false;
       },
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // A face once there is one to show, and the padlock until then.
-            // The avatar is withheld for the same reason the name is: the
-            // same image is on the student's public handle profile, so one on
-            // an anonymous row would match the thread to a handle.
-            if (thread.isShared)
-              UserAvatar(
+      child: Pressable.surface(
+        haptic: null,
+        onLongPress: () => _actions(context, thread),
+        onTap: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ChatScreen(
+                conversationId: thread.conversationId,
+                title: thread.displayName,
+                // Null until they share, like the name beside it.
+                avatarUrl: thread.sharedAvatarUrl,
+              ),
+            ),
+          );
+          if (context.mounted) {
+            context.read<OrgDeskProvider>().load();
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          child: Row(
+            children: [
+              StudentMark(
+                isShared: thread.isShared,
                 avatarUrl: thread.sharedAvatarUrl,
                 initials: thread.initials,
-                size: 42,
-              )
-            else
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: colors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.lock_outline_rounded,
-                  size: 19,
-                  color: colors.textSecondary,
-                ),
               ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      if (thread.isPinned) ...[
-                        Icon(
-                          Icons.push_pin_rounded,
-                          size: 13,
-                          color: colors.textLight,
-                        ),
-                        const SizedBox(width: 5),
-                      ],
-                      Expanded(
-                        child: Text(
-                          thread.displayName,
-                          style: text.titleMedium?.copyWith(
-                            fontWeight: thread.hasUnread
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(thread.when, style: text.bodySmall),
-                    ],
-                  ),
-                  if ((thread.subject ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 1),
-                    Text(
-                      thread.subject!,
-                      style: text.bodySmall?.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          preview,
-                          style: text.bodySmall?.copyWith(
-                            color: thread.hasUnread
-                                ? colors.textPrimary
-                                : colors.textLight,
-                            height: 1.4,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (thread.hasUnread) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: colors.accent,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        if (thread.isPinned) ...[
+                          Icon(Icons.push_pin_rounded,
+                              size: 13, color: colors.textLight),
+                          const SizedBox(width: 5),
+                        ],
+                        Expanded(
                           child: Text(
-                            '${thread.unreadCount}',
-                            style: text.labelSmall?.copyWith(
-                              color: colors.onAccent,
+                            thread.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: text.titleMedium?.copyWith(
+                              fontWeight: thread.hasUnread
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
                             ),
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                  if (!thread.isShared) ...[
-                    const SizedBox(height: 6),
+                    ),
+                    if ((thread.subject ?? '').isNotEmpty)
+                      Text(
+                        thread.subject!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.labelMedium
+                            ?.copyWith(color: colors.textSecondary),
+                      ),
+                    const SizedBox(height: 2),
                     Text(
-                      'Identity hidden until they share their passport',
-                      style: text.labelSmall?.copyWith(color: colors.textLight),
+                      preview,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.bodySmall?.copyWith(
+                        color: thread.hasUnread
+                            ? colors.textPrimary
+                            : colors.textSecondary,
+                      ),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(thread.when,
+                      style: text.labelSmall?.copyWith(color: colors.textLight)),
+                  const SizedBox(height: 6),
+                  if (thread.hasUnread)
+                    Container(
+                      constraints:
+                          const BoxConstraints(minWidth: 18, minHeight: 18),
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: colors.accent,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${thread.unreadCount}',
+                        style: text.labelSmall?.copyWith(
+                          color: colors.onAccent,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    )
+                  else
+                    const SizedBox(height: 18),
                 ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -28,6 +28,12 @@ import ConfigurationNotice from './routes/ConfigurationNotice';
 
 import AdminShell from './routes/admin/AdminShell';
 import AdminOverviewPage from './routes/admin/AdminOverviewPage';
+import AdminPersonPage from './routes/admin/oversight/AdminPersonPage';
+import AdminInstitutionPage from './routes/admin/oversight/AdminInstitutionPage';
+import {
+  AdminApplicationsPage, AdminDocumentsPage, AdminMeetingsPage,
+  AdminMessagesPage, AdminPostsPage,
+} from './routes/admin/oversight/PlatformPages';
 import AdminPeoplePage from './routes/admin/AdminPeoplePage';
 import AdminModerationPage from './routes/admin/AdminModerationPage';
 import AdminSpacesPage from './routes/admin/AdminSpacesPage';
@@ -74,7 +80,14 @@ export default function App() {
         <Route path="verification" element={<VerificationQueuePage />} />
         <Route path="moderation" element={<AdminModerationPage />} />
         <Route path="people" element={<AdminPeoplePage />} />
+        <Route path="people/:id" element={<AdminPersonPage />} />
         <Route path="institutions" element={<AdminInstitutionsPage />} />
+        <Route path="institutions/:id" element={<AdminInstitutionPage />} />
+        <Route path="posts" element={<AdminPostsPage />} />
+        <Route path="messages" element={<AdminMessagesPage />} />
+        <Route path="applications" element={<AdminApplicationsPage />} />
+        <Route path="documents" element={<AdminDocumentsPage />} />
+        <Route path="meetings" element={<AdminMeetingsPage />} />
         <Route path="spaces" element={<AdminSpacesPage />} />
         <Route path="fairs" element={<AdminFairsPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />

@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/constants/app_chrome.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/supabase/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/chrome_button.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/profile_photo_sheet.dart';
 import '../../../core/widgets/custom_text_field.dart';
@@ -107,16 +109,18 @@ class _OrgProfileScreenState extends State<OrgProfileScreen> {
       appBar: AppBar(
         title: const Text('Our page'),
         actions: [
-          IconButton(
-            tooltip: 'Preview public page',
-            icon: const Icon(Icons.remove_red_eye_outlined),
-            onPressed: () {
-              context.push(
+          // The eye alone, in the same round button as every other header
+          // action. Its tooltip (and what VoiceOver reads) says what it does.
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: ChromeButton.icon(
+              icon: Icons.visibility_outlined,
+              tooltip: 'See your page as students do',
+              onTap: () => context.push(
                 '${AppConstants.routeInstitution}/${managed.institution.id}',
-              );
-            },
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(4),
@@ -131,7 +135,8 @@ class _OrgProfileScreenState extends State<OrgProfileScreen> {
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        // Clears the floating tab bar.
+        padding: EdgeInsets.fromLTRB(20, 16, 20, AppChrome.navClearance(context)),
         children: [
           // University profile header with logo and details
           Container(
@@ -314,6 +319,7 @@ class _OrgProfileScreenState extends State<OrgProfileScreen> {
           SectionEditor(
             icon: Icons.calendar_month_rounded,
             title: 'Intakes',
+            itemName: 'intake',
             subtitle: 'When applications open and close.',
             table: 'institution_intakes',
             summarise: (row) => row['label'] as String? ?? '—',
@@ -333,6 +339,7 @@ class _OrgProfileScreenState extends State<OrgProfileScreen> {
           SectionEditor(
             icon: Icons.checklist_rounded,
             title: 'Entry requirements',
+            itemName: 'requirement',
             subtitle: 'Set a general rule, then override it per country. '
                 'Students see the one that applies to them.',
             table: 'institution_entry_requirements',
@@ -389,6 +396,7 @@ class _OrgProfileScreenState extends State<OrgProfileScreen> {
           SectionEditor(
             icon: Icons.savings_rounded,
             title: 'Scholarships',
+            itemName: 'scholarship',
             subtitle: 'Funding often decides whether a matched student can '
                 'actually come.',
             table: 'institution_scholarships',
@@ -411,6 +419,7 @@ class _OrgProfileScreenState extends State<OrgProfileScreen> {
           SectionEditor(
             icon: Icons.contact_mail_rounded,
             title: 'Contacts',
+            itemName: 'contact',
             subtitle: 'Who a student should reach, and for what.',
             table: 'institution_contacts',
             summarise: (row) => row['role'] as String? ?? '—',
@@ -429,6 +438,7 @@ class _OrgProfileScreenState extends State<OrgProfileScreen> {
           SectionEditor(
             icon: Icons.help_outline_rounded,
             title: 'Questions students ask',
+            itemName: 'question',
             subtitle: 'Answer the common ones once instead of in every message.',
             table: 'institution_faqs',
             summarise: (row) => row['question'] as String? ?? '—',

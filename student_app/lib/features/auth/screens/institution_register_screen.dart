@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/widgets/app_back_button.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/push_once.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/custom_text_field.dart';
 import '../../../core/widgets/step_header.dart';
@@ -38,6 +40,20 @@ class _InstitutionRegisterScreenState extends State<InstitutionRegisterScreen> {
   bool _obscure = true;
   bool _acceptedTerms = false;
 
+  // Built once and disposed: recognizers made inside build() stay armed after
+  // a rebuild, and one tap then pushes the same page twice.
+  late final Map<String, TapGestureRecognizer> _legalLinks = {
+    for (final route in const [
+      AppConstants.routeTerms,
+      AppConstants.routeGuidelines,
+      AppConstants.routePrivacy,
+    ])
+      route: TapGestureRecognizer()
+        ..onTap = () {
+          if (mounted) context.pushOnce(route);
+        },
+  };
+
   /// Free mail providers. Not rejected — a small college really may run on one
   /// — but the verified badge is earned by proving control of a domain, so
   /// saying so now is kinder than at verification time.
@@ -57,8 +73,20 @@ class _InstitutionRegisterScreenState extends State<InstitutionRegisterScreen> {
     return d != null && _freeProviders.contains(d);
   }
 
+  TextSpan _link(String label, String route) => TextSpan(
+        text: label,
+        style: TextStyle(
+          color: context.colors.accent,
+          fontWeight: FontWeight.w600,
+        ),
+        recognizer: _legalLinks[route],
+      );
+
   @override
   void dispose() {
+    for (final recognizer in _legalLinks.values) {
+      recognizer.dispose();
+    }
     _name.dispose();
     _email.dispose();
     _password.dispose();
@@ -229,12 +257,28 @@ class _InstitutionRegisterScreenState extends State<InstitutionRegisterScreen> {
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.only(top: 12),
-                            child: Text(
-                              'I am authorised to act for this organisation, '
-                              'and I agree to the Terms of Service and '
-                              'Privacy Policy. I understand students decide '
-                              'who sees their passport.',
-                              style: text.bodySmall?.copyWith(height: 1.45),
+                            // Tappable: agreeing to a document you cannot
+                            // open is not agreement, and App Review opens them.
+                            child: Text.rich(
+                              TextSpan(
+                                style: text.bodySmall?.copyWith(height: 1.45),
+                                children: [
+                                  const TextSpan(
+                                      text: 'I am authorised to act for this '
+                                          'organisation, and I agree to the '),
+                                  _link('Terms of Service',
+                                      AppConstants.routeTerms),
+                                  const TextSpan(text: ', the '),
+                                  _link('Community Guidelines',
+                                      AppConstants.routeGuidelines),
+                                  const TextSpan(text: ' and the '),
+                                  _link('Privacy Policy',
+                                      AppConstants.routePrivacy),
+                                  const TextSpan(
+                                      text: '. I understand students decide '
+                                          'who sees their passport.'),
+                                ],
+                              ),
                             ),
                           ),
                         ),

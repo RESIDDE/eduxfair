@@ -8,6 +8,7 @@ import '../../../core/widgets/app_back_button.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/push_once.dart';
 import '../../../core/widgets/custom_text_field.dart';
 import '../../legal/models/policies.dart';
 import '../../../core/widgets/gradient_border.dart';
@@ -32,8 +33,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _acceptedTerms = false;
   DateTime? _dateOfBirth;
 
+  // One recognizer per legal link, built once. Creating them inside `build`
+  // leaves the previous recognizers alive and still armed, so a single tap
+  // after a rebuild pushed the same route twice — and two pages sharing
+  // go_router's path-derived page key trips the Navigator's key assertion
+  // (the red screen on Terms).
+  late final Map<String, TapGestureRecognizer> _legalLinks = {
+    for (final route in const [
+      AppConstants.routeTerms,
+      AppConstants.routeGuidelines,
+      AppConstants.routePrivacy,
+    ])
+      route: TapGestureRecognizer()..onTap = () => _openLegal(route),
+  };
+
+  void _openLegal(String route) {
+    // Guards the double tap as well: a second push of the same location
+    // would collide on the same page key.
+    if (!mounted) return;
+    context.pushOnce(route);
+  }
+
   @override
   void dispose() {
+    for (final recognizer in _legalLinks.values) {
+      recognizer.dispose();
+    }
     _name.dispose();
     _email.dispose();
     _password.dispose();
@@ -252,13 +277,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 children: [
                                   const TextSpan(text: 'I agree to the '),
                                   _link(context, 'Terms of Service',
-                                      AppConstants.routeTerms),
+                                      _legalLinks[AppConstants.routeTerms]!),
                                   const TextSpan(text: ', the '),
-                                  _link(context, 'Community Guidelines',
-                                      AppConstants.routeGuidelines),
+                                  _link(
+                                      context,
+                                      'Community Guidelines',
+                                      _legalLinks[
+                                          AppConstants.routeGuidelines]!),
                                   const TextSpan(text: ' and the '),
                                   _link(context, 'Privacy Policy',
-                                      AppConstants.routePrivacy),
+                                      _legalLinks[AppConstants.routePrivacy]!),
                                   const TextSpan(
                                       text: '. My passport stays private '
                                           'until I share it with an '
@@ -296,12 +324,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
 }
 
 /// One tappable clause inside the consent sentence.
-TextSpan _link(BuildContext context, String label, String route) => TextSpan(
+TextSpan _link(
+  BuildContext context,
+  String label,
+  TapGestureRecognizer recognizer,
+) =>
+    TextSpan(
       text: label,
       style: TextStyle(
         color: context.colors.accent,
         fontWeight: FontWeight.w600,
       ),
-      recognizer: TapGestureRecognizer()
-        ..onTap = () => context.push(route),
+      recognizer: recognizer,
     );

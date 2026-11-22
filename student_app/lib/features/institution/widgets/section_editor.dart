@@ -45,6 +45,10 @@ class SectionEditor extends StatefulWidget {
   final String table;
   final List<SectionField> fields;
 
+  /// One of the things this section holds — "contact", "requirement" — for
+  /// "Add contact" and "Edit requirement". Falls back to the section title.
+  final String? itemName;
+
   /// The headline and supporting line for a row in the list.
   final String Function(Map<String, dynamic>) summarise;
   final String Function(Map<String, dynamic>) detail;
@@ -58,7 +62,10 @@ class SectionEditor extends StatefulWidget {
     required this.fields,
     required this.summarise,
     required this.detail,
+    this.itemName,
   });
+
+  String get noun => itemName ?? title.toLowerCase();
 
   @override
   State<SectionEditor> createState() => _SectionEditorState();
@@ -77,8 +84,9 @@ class _SectionEditorState extends State<SectionEditor> {
 
   Future<void> _load() async {
     if (!mounted) return;
-    final rows =
-        await context.read<InstitutionProvider>().listSection(widget.table);
+    final rows = await context.read<InstitutionProvider>().listSection(
+      widget.table,
+    );
     if (!mounted) return;
     setState(() {
       _rows = rows;
@@ -90,15 +98,17 @@ class _SectionEditorState extends State<SectionEditor> {
   }
 
   Future<void> _edit([Map<String, dynamic>? row]) async {
-    final saved = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => _RowSheet(
-        title: widget.title,
-        table: widget.table,
-        fields: widget.fields,
-        row: row,
+    // A full page with a back arrow, not a sheet. A sheet could only be
+    // dismissed by dragging it down, which people do not discover — so
+    // someone who opened "Add requirement" by mistake had no visible way out.
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _RowSheet(
+          title: widget.noun,
+          table: widget.table,
+          fields: widget.fields,
+          row: row,
+        ),
       ),
     );
     if (saved == true) _load();
@@ -125,9 +135,10 @@ class _SectionEditorState extends State<SectionEditor> {
     );
 
     if (confirmed != true || !mounted) return;
-    await context
-        .read<InstitutionProvider>()
-        .deleteSectionRow(widget.table, row['id'] as String);
+    await context.read<InstitutionProvider>().deleteSectionRow(
+      widget.table,
+      row['id'] as String,
+    );
     _load();
   }
 
@@ -164,8 +175,8 @@ class _SectionEditorState extends State<SectionEditor> {
                             _loading
                                 ? 'Loading…'
                                 : _rows.isEmpty
-                                    ? 'Nothing added yet'
-                                    : '${_rows.length} added',
+                                ? 'Nothing added yet'
+                                : '${_rows.length} added',
                             style: text.bodySmall,
                           ),
                         ],
@@ -189,8 +200,10 @@ class _SectionEditorState extends State<SectionEditor> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(widget.subtitle,
-                        style: text.bodySmall?.copyWith(height: 1.45)),
+                    Text(
+                      widget.subtitle,
+                      style: text.bodySmall?.copyWith(height: 1.45),
+                    ),
                     const SizedBox(height: 14),
                     ..._rows.map(
                       (row) => Padding(
@@ -211,8 +224,10 @@ class _SectionEditorState extends State<SectionEditor> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(widget.summarise(row),
-                                          style: text.titleSmall),
+                                      Text(
+                                        widget.summarise(row),
+                                        style: text.titleSmall,
+                                      ),
                                       Text(
                                         widget.detail(row),
                                         style: text.bodySmall,
@@ -225,8 +240,11 @@ class _SectionEditorState extends State<SectionEditor> {
                                 IconButton(
                                   tooltip: 'Remove',
                                   onPressed: () => _remove(row),
-                                  icon: Icon(Icons.delete_outline_rounded,
-                                      size: 19, color: colors.error),
+                                  icon: Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 19,
+                                    color: colors.error,
+                                  ),
                                 ),
                               ],
                             ),
@@ -237,7 +255,7 @@ class _SectionEditorState extends State<SectionEditor> {
                     OutlinedButton.icon(
                       onPressed: () => _edit(),
                       icon: const Icon(Icons.add_rounded, size: 18),
-                      label: Text('Add ${widget.title.toLowerCase()}'),
+                      label: Text('Add ${widget.noun}'),
                     ),
                   ],
                 ),
@@ -278,15 +296,69 @@ class _RowSheetState extends State<_RowSheet> {
           text: f.type == SectionFieldType.currency
               ? formatAmountWithCommas(widget.row?[f.key])
               : (widget.row?[f.key]?.toString() ?? ''),
-        )
+        ),
   };
   late final Map<String, String?> _choices = {
     for (final f in widget.fields)
       if (f.type == SectionFieldType.choice)
-        f.key: widget.row?[f.key] as String?
+        f.key: widget.row?[f.key] as String?,
   };
 
   bool _saving = false;
+
+  /// What the form held when it opened, to tell whether leaving loses work.
+  late final Map<String, String> _initialText = {
+    for (final e in _controllers.entries) e.key: e.value.text,
+  };
+  late final Map<String, String?> _initialChoices = Map.of(_choices);
+
+  bool get _dirty =>
+      _controllers.entries.any((e) => e.value.text != _initialText[e.key]) ||
+      _choices.entries.any((e) => e.value != _initialChoices[e.key]);
+
+  /// Back, asking first only if something was typed. An untouched form just
+  /// closes — the case of opening it to look, or by mistake.
+  Future<void> _leave() async {
+    if (_saving) return;
+    if (!_dirty) {
+      Navigator.of(context).pop(false);
+      return;
+    }
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text('What you have typed here will not be saved.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(false),
+            child: const Text('Keep editing'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(true),
+            style: TextButton.styleFrom(foregroundColor: context.colors.error),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) Navigator.of(context).pop(false);
+  }
+
+  bool _wasDirty = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Typing does not rebuild the page, but PopScope reads `_dirty` at build
+    // time — so a swipe back would skip the question. Rebuild only when the
+    // answer to "would leaving lose something?" changes.
+    for (final c in _controllers.values) {
+      c.addListener(() {
+        if (_dirty != _wasDirty) setState(() => _wasDirty = _dirty);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -310,8 +382,10 @@ class _RowSheetState extends State<_RowSheet> {
 
     if (picked != null) {
       setState(() {
-        _controllers[field.key]!.text =
-            picked.toIso8601String().split('T').first;
+        _controllers[field.key]!.text = picked
+            .toIso8601String()
+            .split('T')
+            .first;
       });
     }
   }
@@ -330,9 +404,9 @@ class _RowSheetState extends State<_RowSheet> {
       values[field.key] = raw.isEmpty
           ? null
           : (field.type == SectionFieldType.number ||
-                  field.type == SectionFieldType.currency)
-              ? num.tryParse(raw.replaceAll(',', ''))
-              : raw;
+                field.type == SectionFieldType.currency)
+          ? num.tryParse(raw.replaceAll(',', ''))
+          : raw;
     }
 
     final provider = context.read<InstitutionProvider>();
@@ -359,106 +433,134 @@ class _RowSheetState extends State<_RowSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final insets = MediaQuery.viewInsetsOf(context);
+    final colors = context.colors;
+    final heading = widget.row == null
+        ? 'Add ${widget.title}'
+        : 'Edit ${widget.title}';
 
-    return Padding(
-      // So the keyboard does not cover the field being typed into.
-      padding: EdgeInsets.only(bottom: insets.bottom),
-      child: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  widget.row == null
-                      ? 'Add ${widget.title.toLowerCase()}'
-                      : 'Edit ${widget.title.toLowerCase()}',
-                  style: text.headlineSmall,
-                ),
-                const SizedBox(height: 20),
+    // PopScope routes the system back gesture and Android's back button
+    // through the same check as the arrow.
+    return PopScope(
+      canPop: !_dirty && !_saving,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leave();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            tooltip: 'Back',
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: _leave,
+          ),
+          centerTitle: true,
+          title: Text(heading),
+          actions: [
+            // Save where iOS puts it on an edit screen: top right, as a word.
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _saving
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : TextButton(
+                      onPressed: _save,
+                      style: TextButton.styleFrom(
+                        foregroundColor: colors.textPrimary,
+                        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      child: const Text('Save'),
+                    ),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          top: false,
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ...widget.fields.map((field) {
+                    if (field.type == SectionFieldType.choice) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _choices[field.key],
+                          decoration: InputDecoration(labelText: field.label),
+                          items: [
+                            DropdownMenuItem(
+                              value: null,
+                              child: Text(field.emptyLabel ?? 'Not specified'),
+                            ),
+                            ...field.options!.entries.map(
+                              (e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value),
+                              ),
+                            ),
+                          ],
+                          onChanged: (v) =>
+                              setState(() => _choices[field.key] = v),
+                        ),
+                      );
+                    }
 
-                ...widget.fields.map((field) {
-                  if (field.type == SectionFieldType.choice) {
+                    final isDate = field.type == SectionFieldType.date;
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 16),
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _choices[field.key],
-                        decoration: InputDecoration(labelText: field.label),
-                        items: [
-                          DropdownMenuItem(
-                            value: null,
-                            child: Text(field.emptyLabel ?? 'Not specified'),
-                          ),
-                          ...field.options!.entries.map(
-                            (e) => DropdownMenuItem(
-                                value: e.key, child: Text(e.value)),
-                          ),
-                        ],
-                        onChanged: (v) =>
-                            setState(() => _choices[field.key] = v),
+                      child: CustomTextField(
+                        controller: _controllers[field.key],
+                        label: field.label,
+                        hint: field.hint ?? (isDate ? 'Tap to choose' : null),
+                        readOnly: isDate,
+                        onTap: isDate ? () => _pickDate(field) : null,
+                        maxLines: field.type == SectionFieldType.multiline
+                            ? 4
+                            : 1,
+                        keyboardType: switch (field.type) {
+                          SectionFieldType.number =>
+                            const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                          SectionFieldType.currency => TextInputType.number,
+                          SectionFieldType.email => TextInputType.emailAddress,
+                          _ => TextInputType.text,
+                        },
+                        inputFormatters: switch (field.type) {
+                          SectionFieldType.number => [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[0-9.]'),
+                            ),
+                          ],
+                          SectionFieldType.currency => const [
+                            ThousandsSeparatorInputFormatter(
+                              allowDecimal: true,
+                            ),
+                          ],
+                          _ => null,
+                        },
+                        textCapitalization: field.type == SectionFieldType.email
+                            ? TextCapitalization.none
+                            : TextCapitalization.sentences,
+                        validator: field.required
+                            ? (v) => (v == null || v.trim().isEmpty)
+                                  ? '${field.label} is required'
+                                  : null
+                            : null,
                       ),
                     );
-                  }
-
-                  final isDate = field.type == SectionFieldType.date;
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: CustomTextField(
-                      controller: _controllers[field.key],
-                      label: field.label,
-                      hint: field.hint ?? (isDate ? 'Tap to choose' : null),
-                      readOnly: isDate,
-                      onTap: isDate ? () => _pickDate(field) : null,
-                      maxLines:
-                          field.type == SectionFieldType.multiline ? 4 : 1,
-                      keyboardType: switch (field.type) {
-                        SectionFieldType.number =>
-                          const TextInputType.numberWithOptions(decimal: true),
-                        SectionFieldType.currency => TextInputType.number,
-                        SectionFieldType.email => TextInputType.emailAddress,
-                        _ => TextInputType.text,
-                      },
-                      inputFormatters: switch (field.type) {
-                        SectionFieldType.number => [
-                            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                          ],
-                        SectionFieldType.currency => const [
-                            ThousandsSeparatorInputFormatter(allowDecimal: true),
-                          ],
-                        _ => null,
-                      },
-                      textCapitalization:
-                          field.type == SectionFieldType.email
-                              ? TextCapitalization.none
-                              : TextCapitalization.sentences,
-                      validator: field.required
-                          ? (v) => (v == null || v.trim().isEmpty)
-                              ? '${field.label} is required'
-                              : null
-                          : null,
-                    ),
-                  );
-                }),
-
-                const SizedBox(height: 4),
-                ElevatedButton(
-                  onPressed: _saving ? null : _save,
-                  child: _saving
-                      ? SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2.2, color: context.colors.onAccent),
-                        )
-                      : const Text('Save'),
-                ),
-              ],
+                  }),
+                ],
+              ),
             ),
           ),
         ),

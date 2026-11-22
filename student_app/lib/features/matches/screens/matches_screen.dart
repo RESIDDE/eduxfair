@@ -120,7 +120,7 @@ class _InvitationsTab extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.auto_awesome_rounded,
+                Icon(Icons.lock_outline_rounded,
                     size: 18, color: colors.success),
                 const SizedBox(width: 10),
                 Expanded(

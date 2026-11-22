@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/constants/app_chrome.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/widgets/chrome_button.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/surface.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -67,190 +69,175 @@ class _OrgSpacesScreenState extends State<OrgSpacesScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Spaces'),
+          // Scheduling lives in the top-right, like writing a post: a floating
+          // button would sit on the tab bar.
+          actions: [
+            if (institution != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: ChromeButton.icon(
+                  icon: Icons.add_rounded,
+                  tooltip: 'Schedule a Space',
+                  onTap: () => _schedule(context, institution.id),
+                ),
+              ),
+          ],
+          // Styled by tabBarTheme, like every other tab strip in the app.
           bottom: TabBar(
             tabs: [
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Live & Upcoming'),
-                  if (spaces.live.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: colors.error,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        'LIVE',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Live & upcoming'),
+                    // A dot, not a badge: "something is on air" is the whole
+                    // message, and a red pill shouting LIVE says it louder
+                    // than it needs to.
+                    if (spaces.live.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: colors.error,
+                          shape: BoxShape.circle,
                         ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const Tab(text: 'Past'),
+            ],
+          ),
+        ),
+        body: Column(
+          children: [
+            if (spaces.error != null)
+              Container(
+                width: double.infinity,
+                color: colors.errorLight,
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        spaces.error!,
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: colors.error),
                       ),
                     ),
-                  ] else if (spaces.upcoming.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: colors.accent.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${spaces.upcoming.length}',
-                        style: TextStyle(
-                          color: colors.accent,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                    IconButton(
+                      onPressed: spaces.clearError,
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      color: colors.error,
                     ),
                   ],
-                ],
+                ),
               ),
-            ),
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('History'),
-                  if (historyList.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: colors.textSecondary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${historyList.length}',
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+            Expanded(
+              child: spaces.loading && spaces.spaces.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : TabBarView(
+                      children: [
+                        // Tab 1: Live & Upcoming
+                        RefreshIndicator(
+                          onRefresh: () =>
+                              spaces.load(institutionId: _institutionId),
+                          child: upcomingList.isEmpty
+                              ? ListView(
+                                  key: const PageStorageKey(
+                                    'org_spaces_upcoming_empty',
+                                  ),
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  padding: EdgeInsets.fromLTRB(
+                                    20,
+                                    60,
+                                    20,
+                                    AppChrome.navClearance(context),
+                                  ),
+                                  children: const [
+                                    EmptyState(
+                                      icon: Icons.podcasts_outlined,
+                                      title: 'No upcoming sessions',
+                                      message:
+                                          'Schedule an admissions hour, scholarship Q&A '
+                                          'or open day. Students will see it on their '
+                                          'Spaces tab and drop in.',
+                                    ),
+                                  ],
+                                )
+                              : ListView.builder(
+                                  key: const PageStorageKey(
+                                    'org_spaces_upcoming_list',
+                                  ),
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  padding: EdgeInsets.fromLTRB(
+                                    16,
+                                    12,
+                                    16,
+                                    AppChrome.navClearance(context),
+                                  ),
+                                  itemCount: upcomingList.length,
+                                  itemBuilder: (context, index) =>
+                                      _OrgSpaceCard(space: upcomingList[index]),
+                                ),
                         ),
-                      ),
+
+                        // Tab 2: History
+                        RefreshIndicator(
+                          onRefresh: () =>
+                              spaces.load(institutionId: _institutionId),
+                          child: historyList.isEmpty
+                              ? ListView(
+                                  key: const PageStorageKey(
+                                    'org_spaces_history_empty',
+                                  ),
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  padding: EdgeInsets.fromLTRB(
+                                    20,
+                                    60,
+                                    20,
+                                    AppChrome.navClearance(context),
+                                  ),
+                                  children: const [
+                                    EmptyState(
+                                      icon: Icons.history_rounded,
+                                      title: 'No past Spaces',
+                                      message:
+                                          'Ended live sessions and attendance '
+                                          'statistics will appear here.',
+                                    ),
+                                  ],
+                                )
+                              : ListView.builder(
+                                  key: const PageStorageKey(
+                                    'org_spaces_history_list',
+                                  ),
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  padding: EdgeInsets.fromLTRB(
+                                    16,
+                                    12,
+                                    16,
+                                    AppChrome.navClearance(context),
+                                  ),
+                                  itemCount: historyList.length,
+                                  itemBuilder: (context, index) =>
+                                      _OrgSpaceCard(space: historyList[index]),
+                                ),
+                        ),
+                      ],
                     ),
-                  ],
-                ],
-              ),
             ),
           ],
         ),
       ),
-      floatingActionButton: institution == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => _schedule(context, institution.id),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Schedule'),
-            ),
-      body: Column(
-        children: [
-          if (spaces.error != null)
-            Container(
-              width: double.infinity,
-              color: colors.errorLight,
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      spaces.error!,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: colors.error),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: spaces.clearError,
-                    icon: const Icon(Icons.close_rounded, size: 18),
-                    color: colors.error,
-                  ),
-                ],
-              ),
-            ),
-          Expanded(
-            child: spaces.loading && spaces.spaces.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : TabBarView(
-                    children: [
-                      // Tab 1: Live & Upcoming
-                      RefreshIndicator(
-                        onRefresh: () => spaces.load(institutionId: _institutionId),
-                        child: upcomingList.isEmpty
-                            ? ListView(
-                                key: const PageStorageKey('org_spaces_upcoming_empty'),
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding: const EdgeInsets.all(20),
-                                children: const [
-                                  SizedBox(height: 40),
-                                  EmptyState(
-                                    icon: Icons.podcasts_outlined,
-                                    title: 'No upcoming sessions',
-                                    message:
-                                        'Schedule an admissions hour, scholarship Q&A '
-                                        'or open day. Students will see it on their '
-                                        'Spaces tab and drop in.',
-                                  ),
-                                ],
-                              )
-                            : ListView.builder(
-                                key: const PageStorageKey('org_spaces_upcoming_list'),
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 12, 16, 96),
-                                itemCount: upcomingList.length,
-                                itemBuilder: (context, index) =>
-                                    _OrgSpaceCard(space: upcomingList[index]),
-                              ),
-                      ),
-
-                      // Tab 2: History
-                      RefreshIndicator(
-                        onRefresh: () => spaces.load(institutionId: _institutionId),
-                        child: historyList.isEmpty
-                            ? ListView(
-                                key: const PageStorageKey('org_spaces_history_empty'),
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding: const EdgeInsets.all(20),
-                                children: const [
-                                  SizedBox(height: 40),
-                                  EmptyState(
-                                    icon: Icons.history_rounded,
-                                    title: 'No space history',
-                                    message:
-                                        'Ended live sessions and attendance '
-                                        'statistics will appear here.',
-                                  ),
-                                ],
-                              )
-                            : ListView.builder(
-                                key: const PageStorageKey('org_spaces_history_list'),
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 12, 16, 96),
-                                itemCount: historyList.length,
-                                itemBuilder: (context, index) =>
-                                    _OrgSpaceCard(space: historyList[index]),
-                              ),
-                      ),
-                    ],
-                  ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
+    );
+  }
 
   Future<void> _schedule(BuildContext context, String institutionId) async {
     final hostId = context.read<AuthProvider>().user?.id;
@@ -258,13 +245,15 @@ class _OrgSpacesScreenState extends State<OrgSpacesScreen> {
         context.read<InstitutionProvider>().institution?.isVerified ?? false;
     if (hostId == null) return;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _ScheduleSpaceSheet(
-        institutionId: institutionId,
-        hostProfileId: hostId,
-        isVerified: verified,
+    // A page with a back arrow, like the other "add" forms: a sheet gave no
+    // visible way to change your mind.
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => _ScheduleSpaceSheet(
+          institutionId: institutionId,
+          hostProfileId: hostId,
+          isVerified: verified,
+        ),
       ),
     );
   }
@@ -276,9 +265,7 @@ class _OrgSpacesScreenState extends State<OrgSpacesScreen> {
 /// which is white on the light theme and therefore invisible on a sheet.
 TextStyle? _fieldLabel(BuildContext context) {
   final colors = Theme.of(context).extension<AppThemeColors>()!;
-  return Theme.of(context)
-      .textTheme
-      .titleSmall
+  return Theme.of(context).textTheme.titleSmall
       ?.copyWith(fontWeight: FontWeight.w600, color: colors.textPrimary);
 }
 
@@ -308,8 +295,10 @@ class _OrgSpaceCard extends StatelessWidget {
                 ),
                 if (space.isLive)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: colors.errorLight,
                       borderRadius: BorderRadius.circular(999),
@@ -317,15 +306,17 @@ class _OrgSpaceCard extends StatelessWidget {
                     child: Text(
                       'LIVE',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: colors.error,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        color: colors.error,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   )
                 else if (space.isOver)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: colors.surfaceVariant,
                       borderRadius: BorderRadius.circular(999),
@@ -333,9 +324,9 @@ class _OrgSpaceCard extends StatelessWidget {
                     child: Text(
                       space.statusLabel,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: colors.textSecondary,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
               ],
@@ -345,9 +336,7 @@ class _OrgSpaceCard extends StatelessWidget {
               '${space.kindLabel} · ${formatDateTime(space.scheduledFor)} · '
               '${space.durationMin} min'
               '${space.requiresAdmission ? ' · waiting room' : ''}',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
+              style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: colors.textSecondary),
             ),
             if (space.description != null &&
@@ -355,9 +344,7 @@ class _OrgSpaceCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 space.description!,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
+                style: Theme.of(context).textTheme.bodyMedium
                     ?.copyWith(color: colors.textSecondary, height: 1.4),
               ),
             ],
@@ -366,8 +353,9 @@ class _OrgSpaceCard extends StatelessWidget {
               children: [
                 if (space.isLive) ...[
                   FilledButton.icon(
-                    onPressed: () => context
-                        .push('${AppConstants.routeCall}/space/${space.id}'),
+                    onPressed: () => context.push(
+                      '${AppConstants.routeCall}/space/${space.id}',
+                    ),
                     icon: const Icon(Icons.videocam_rounded, size: 16),
                     label: const Text('Join room'),
                   ),
@@ -375,15 +363,17 @@ class _OrgSpaceCard extends StatelessWidget {
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: colors.error,
-                      side:
-                          BorderSide(color: colors.error.withValues(alpha: 0.5)),
+                      side: BorderSide(
+                        color: colors.error.withValues(alpha: 0.5),
+                      ),
                       // The theme's outlined button is full-width, which a Row
                       // lays out unbounded — that throws and the whole card
                       // renders as nothing.
                       minimumSize: const Size(0, 40),
                     ),
-                    onPressed:
-                        spaces.busy ? null : () => _confirmEnd(context, space),
+                    onPressed: spaces.busy
+                        ? null
+                        : () => _confirmEnd(context, space),
                     icon: const Icon(Icons.call_end_rounded, size: 16),
                     label: const Text('End session'),
                   ),
@@ -395,7 +385,8 @@ class _OrgSpaceCard extends StatelessWidget {
                             final ok = await spaces.goLive(space);
                             if (ok && context.mounted) {
                               context.push(
-                                  '${AppConstants.routeCall}/space/${space.id}');
+                                '${AppConstants.routeCall}/space/${space.id}',
+                              );
                             }
                           },
                     icon: const Icon(Icons.podcasts_rounded, size: 16),
@@ -579,9 +570,9 @@ class _AttendanceState extends State<_Attendance> {
 
   Future<void> _load() async {
     try {
-      final rows = await context
-          .read<SpacesProvider>()
-          .rosterFor(widget.spaceId);
+      final rows = await context.read<SpacesProvider>().rosterFor(
+        widget.spaceId,
+      );
       if (mounted) setState(() => _roster = rows);
     } catch (_) {
       if (mounted) setState(() => _roster = const []);
@@ -633,9 +624,7 @@ class _Stat extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
+            style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: colors.textSecondary),
           ),
         ],
@@ -686,204 +675,210 @@ class _ScheduleSpaceSheetState extends State<_ScheduleSpaceSheet> {
     final colors = Theme.of(context).extension<AppThemeColors>()!;
     final spaces = context.watch<SpacesProvider>();
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        20 + MediaQuery.viewInsetsOf(context).bottom,
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        centerTitle: true,
+        title: const Text('Schedule a Space'),
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Schedule a live session',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 18),
-            TextField(
-              controller: _title,
-              maxLength: 120,
-              // Without this the sheet never rebuilds as the title is typed, so
-              // the Schedule button below — whose enabled test reads
-              // `_title.text` — stays disabled however much you write.
-              onChanged: (_) => setState(() {}),
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Title',
-                hintText: 'Computer Science admissions hour',
-                counterText: '',
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text('What is it for', style: _fieldLabel(context)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final entry in AppConstants.spaceKinds.entries)
-                  ChoiceChip(
-                    label: Text(entry.value),
-                    selected: _kind == entry.key,
-                    // chipTheme.labelStyle carries no colour, so an unselected
-                    // chip inherits one too pale to read. Both states are set
-                    // here rather than leaning on the default.
-                    labelStyle: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _kind == entry.key
-                          ? colors.accent
-                          : colors.textPrimary,
-                    ),
-                    onSelected: (_) => setState(() => _kind = entry.key),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              AppConstants.spaceKindBlurbs[_kind] ?? '',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: colors.textSecondary),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: _description,
-              maxLines: 3,
-              maxLength: 600,
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                hintText: 'Bring your questions about entry requirements.',
-              ),
-            ),
-            const SizedBox(height: 8),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(_when == null
-                  ? 'Pick a date and time'
-                  : formatDateTime(_when!)),
-              trailing: const Icon(Icons.calendar_today_rounded, size: 18),
-              onTap: _pickWhen,
-            ),
-            Row(
-              children: [
-                Text('Minutes', style: _fieldLabel(context)),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Slider(
-                    value: _duration.toDouble(),
-                    min: 15,
-                    max: 180,
-                    divisions: 11,
-                    label: '$_duration',
-                    onChanged: (v) => setState(() => _duration = v.round()),
-                  ),
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _title,
+                maxLength: 120,
+                // Without this the sheet never rebuilds as the title is typed, so
+                // the Schedule button below — whose enabled test reads
+                // `_title.text` — stays disabled however much you write.
+                onChanged: (_) => setState(() {}),
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Title',
+                  hintText: 'Computer Science admissions hour',
+                  counterText: '',
                 ),
-                Text('$_duration'),
-              ],
-            ),
-            // Deliberately NOT a disabled SwitchListTile. Disabling one greys
-            // out its title and subtitle together, which made the sentence
-            // explaining why it is locked the hardest thing on the screen to
-            // read. The switch alone is locked; the words stay legible.
-            //
-            // Forced on until the institution is verified by a trigger in the
-            // schema, so this is honesty about a rule rather than the rule.
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Let people in one at a time',
-                          style: _fieldLabel(context)),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          if (!widget.isVerified) ...[
-                            Icon(Icons.lock_outline_rounded,
-                                size: 13, color: colors.textSecondary),
-                            const SizedBox(width: 4),
-                          ],
-                          Expanded(
-                            child: Text(
-                              widget.isVerified
-                                  ? 'Students wait until you admit them.'
-                                  : 'Required until your institution is verified.',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: colors.textSecondary),
-                            ),
-                          ),
-                        ],
+              ),
+              const SizedBox(height: 14),
+              Text('What is it for', style: _fieldLabel(context)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final entry in AppConstants.spaceKinds.entries)
+                    ChoiceChip(
+                      label: Text(entry.value),
+                      selected: _kind == entry.key,
+                      // chipTheme.labelStyle carries no colour, so an unselected
+                      // chip inherits one too pale to read. Both states are set
+                      // here rather than leaning on the default.
+                      labelStyle: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _kind == entry.key
+                            ? colors.accent
+                            : colors.textPrimary,
                       ),
-                    ],
+                      onSelected: (_) => setState(() => _kind = entry.key),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                AppConstants.spaceKindBlurbs[_kind] ?? '',
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _description,
+                maxLines: 3,
+                maxLength: 600,
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  hintText: 'Bring your questions about entry requirements.',
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  _when == null
+                      ? 'Pick a date and time'
+                      : formatDateTime(_when!),
+                ),
+                trailing: const Icon(Icons.calendar_today_rounded, size: 18),
+                onTap: _pickWhen,
+              ),
+              Row(
+                children: [
+                  Text('Minutes', style: _fieldLabel(context)),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Slider(
+                      value: _duration.toDouble(),
+                      min: 15,
+                      max: 180,
+                      divisions: 11,
+                      label: '$_duration',
+                      onChanged: (v) => setState(() => _duration = v.round()),
+                    ),
+                  ),
+                  Text('$_duration'),
+                ],
+              ),
+              // Deliberately NOT a disabled SwitchListTile. Disabling one greys
+              // out its title and subtitle together, which made the sentence
+              // explaining why it is locked the hardest thing on the screen to
+              // read. The switch alone is locked; the words stay legible.
+              //
+              // Forced on until the institution is verified by a trigger in the
+              // schema, so this is honesty about a rule rather than the rule.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Let people in one at a time',
+                          style: _fieldLabel(context),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            if (!widget.isVerified) ...[
+                              Icon(
+                                Icons.lock_outline_rounded,
+                                size: 13,
+                                color: colors.textSecondary,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Expanded(
+                              child: Text(
+                                widget.isVerified
+                                    ? 'Students wait until you admit them.'
+                                    : 'Required until your institution is verified.',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: colors.textSecondary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _waitingRoom,
+                    onChanged: widget.isVerified
+                        ? (v) => setState(() => _waitingRoom = v)
+                        : null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Students join to listen without sharing who they are. If one '
+                'raises their hand, unmutes or writes in the chat, they are asked '
+                'to share their Education Passport first — and then you see their '
+                'name.',
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: colors.textLight, height: 1.45),
+              ),
+              const SizedBox(height: 20),
+              if (_missing != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    _missing!,
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: colors.textSecondary),
                   ),
                 ),
-                Switch(
-                  value: _waitingRoom,
-                  onChanged: widget.isVerified
-                      ? (v) => setState(() => _waitingRoom = v)
-                      : null,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Students join to listen without sharing who they are. If one '
-              'raises their hand, unmutes or writes in the chat, they are asked '
-              'to share their Education Passport first — and then you see their '
-              'name.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: colors.textLight, height: 1.45),
-            ),
-            const SizedBox(height: 20),
-            if (_missing != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Text(
-                  _missing!,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: colors.textSecondary),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: spaces.busy || _missing != null
+                      ? null
+                      : () async {
+                          final ok = await spaces.schedule(
+                            institutionId: widget.institutionId,
+                            hostProfileId: widget.hostProfileId,
+                            title: _title.text,
+                            description: _description.text.isEmpty
+                                ? null
+                                : _description.text,
+                            kind: _kind,
+                            scheduledFor: _when!,
+                            durationMin: _duration,
+                            requiresAdmission: _waitingRoom,
+                          );
+                          if (ok && context.mounted) {
+                            Navigator.of(context).pop();
+                          }
+                        },
+                  child: spaces.busy
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        )
+                      : const Text('Schedule'),
                 ),
               ),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: spaces.busy || _missing != null
-                    ? null
-                    : () async {
-                        final ok = await spaces.schedule(
-                          institutionId: widget.institutionId,
-                          hostProfileId: widget.hostProfileId,
-                          title: _title.text,
-                          description: _description.text.isEmpty
-                              ? null
-                              : _description.text,
-                          kind: _kind,
-                          scheduledFor: _when!,
-                          durationMin: _duration,
-                          requiresAdmission: _waitingRoom,
-                        );
-                        if (ok && context.mounted) Navigator.of(context).pop();
-                      },
-                child: spaces.busy
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2.4),
-                      )
-                    : const Text('Schedule'),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

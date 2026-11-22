@@ -18,6 +18,7 @@ ends, and the **Fair Passport** QR ties the physical Lagos fairs back into it.
 | `devserver/` | A local stand-in for Supabase, so both apps run with no cloud project |
 | `student_app/` | Flutter — **students and institution staff** → iOS, Android, Web |
 | `web/` | React 19 + Vite + Tailwind — **the super admin console, and only that** |
+| `website/` | The public EduXFair marketing site, plus the hosted `/privacy/` and `/terms/` pages — see [website/README.md](website/README.md) |
 
 Students and institutions both live in the Flutter app. `web/` serves one
 audience — Lekkside staff with `profiles.role = 'admin'` — and anyone else who

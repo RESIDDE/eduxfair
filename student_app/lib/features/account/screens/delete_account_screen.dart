@@ -36,11 +36,30 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
   static const _phrase = 'DELETE';
 
+  /// For staff: what leaving does to each institution they belong to. Null
+  /// until loaded, and never loaded for students.
+  List<Map<String, dynamic>>? _impact;
+
   @override
   void initState() {
     super.initState();
     // The button enables itself as the phrase is typed.
     _confirm.addListener(_rebuild);
+    if (context.read<AuthProvider>().user?.isStaff ?? false) _loadImpact();
+  }
+
+  Future<void> _loadImpact() async {
+    try {
+      final rows = await SupabaseService.instance.client.rpc('my_deletion_impact');
+      if (!mounted) return;
+      setState(() => _impact = [
+            for (final r in (rows as List? ?? const []))
+              (r as Map).cast<String, dynamic>(),
+          ]);
+    } catch (_) {
+      // The screen still works without it; the general copy below covers it.
+      if (mounted) setState(() => _impact = const []);
+    }
   }
 
   void _rebuild() => setState(() {});
@@ -131,6 +150,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = Theme.of(context).textTheme;
+    final isStaff = context.watch<AuthProvider>().user?.isStaff ?? false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Delete account')),
@@ -144,15 +164,35 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
           const SizedBox(height: 14),
           Text('Deleting your account removes:', style: text.bodyLarge),
           const SizedBox(height: 10),
-          for (final line in const [
-            'Your Education Passport, including every document you uploaded',
-            'Your profile, handle, bio and photo',
-            'Your posts, comments, likes and saved items',
-            'Your messages, and your place in any conversation',
-            'Every institution’s access to you',
-            'Your applications and meeting history',
-          ])
+          for (final line in isStaff
+              ? const [
+                  'Your profile, name and photo',
+                  'Posts you wrote, including ones published for your '
+                      'institution',
+                  'Messages you wrote in your institution’s conversations',
+                  'Your place on your institution’s team',
+                ]
+              : const [
+                  'Your Education Passport, including every document you '
+                      'uploaded',
+                  'Your profile, handle, bio and photo',
+                  'Your posts, comments, likes and saved items',
+                  'Your messages, and your place in any conversation',
+                  'Every institution’s access to you',
+                  'Your applications and meeting history',
+                ])
             _Bullet(line, colors.error),
+          // What happens to the institution is the part staff most need to
+          // know, and it differs per institution — so it is spelled out for
+          // each one rather than left to a generic bullet.
+          if (isStaff && _impact == null) ...[
+            const SizedBox(height: 16),
+            const Center(child: CircularProgressIndicator()),
+          ],
+          for (final inst in _impact ?? const <Map<String, dynamic>>[]) ...[
+            const SizedBox(height: 16),
+            _InstitutionImpact(inst),
+          ],
           const SizedBox(height: 18),
           Text('What stays:', style: text.bodyLarge),
           const SizedBox(height: 10),
@@ -217,6 +257,71 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
               onPressed: _busy ? null : () => context.pop(),
               child: const Text('Keep my account'),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One institution, and what deleting this account does to it.
+class _InstitutionImpact extends StatelessWidget {
+  final Map<String, dynamic> impact;
+  const _InstitutionImpact(this.impact);
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = Theme.of(context).textTheme;
+    final name = impact['name'] as String? ?? 'Your institution';
+    final removes = impact['removes_institution'] == true;
+    final others = (impact['other_members'] as num?)?.toInt() ?? 0;
+    final apps = (impact['applications'] as num?)?.toInt() ?? 0;
+    final convs = (impact['conversations'] as num?)?.toInt() ?? 0;
+    final handsOver = impact['hands_over_ownership'] == true;
+
+    String plural(int n, String one, String many) => n == 1 ? '1 $one' : '$n $many';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: removes ? colors.errorLight : colors.surfaceVariant,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                removes ? Icons.warning_amber_rounded : Icons.apartment_rounded,
+                size: 18,
+                color: removes ? colors.error : colors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  removes ? '$name will be deleted too' : '$name stays',
+                  style: text.titleSmall?.copyWith(
+                      color: removes ? colors.error : null),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            removes
+                ? 'You are its only team member, so its page, programmes, '
+                    'posts and prospectus are removed with you — along with '
+                    '${plural(apps, 'application', 'applications')} and '
+                    '${plural(convs, 'conversation', 'conversations')} with '
+                    'students. To keep it, add a colleague from More → Team '
+                    'before you delete your account.'
+                : '${plural(others, 'colleague', 'colleagues')} ${others == 1 ? 'keeps' : 'keep'} running '
+                    'it, and its page, applications and conversations are '
+                    'unaffected.'
+                    '${handsOver ? ' You are its only owner, so ownership passes to the longest-serving colleague.' : ''}',
+            style: text.bodySmall?.copyWith(height: 1.45),
           ),
         ],
       ),

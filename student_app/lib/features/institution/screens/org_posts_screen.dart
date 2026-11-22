@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/constants/app_chrome.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/chrome_button.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/institution_avatar.dart';
+import '../../../core/widgets/material_surface.dart';
 import '../../passport/providers/passport_provider.dart';
 import '../../social/models/post.dart';
 import '../../social/providers/feed_provider.dart';
@@ -114,26 +118,51 @@ class _OrgPostsScreenState extends State<OrgPostsScreen>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final managed = institution.managed;
+
+    // The same header as the student feed: glass, with the list passing under
+    // it; the institution's mark where the student's avatar sits; one way to
+    // write a post, in the top-right corner. It used to carry two — a pill in
+    // the bar and a floating button — and the floating one would now sit on
+    // the tab bar.
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        titleSpacing: 16,
-        centerTitle: false,
+        backgroundColor: Colors.transparent,
+        flexibleSpace: const MaterialSurface(
+          lightFromTop: false,
+          child: SizedBox.expand(),
+        ),
+        scrolledUnderElevation: 0,
+        titleSpacing: 0,
+        leadingWidth: 60,
+        leading: Center(
+          child: ChromeButton(
+            tooltip: 'Our page',
+            onTap: () => context.go(AppConstants.routeOrgProfile),
+            child: InstitutionAvatar(
+              logoUrl: managed?.institution.logoUrl,
+              initials: managed?.institution.initials ?? '?',
+              size: 30,
+            ),
+          ),
+        ),
+        centerTitle: true,
         title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Community & Posts',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
+            Text('Posts',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)),
             if (institution.handle != null)
               Text(
                 '@${institution.handle}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: colors.textSecondary,
-                ),
+                style: Theme.of(context)
+                    .textTheme
+                    .labelSmall
+                    ?.copyWith(color: colors.textSecondary),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -141,24 +170,11 @@ class _OrgPostsScreenState extends State<OrgPostsScreen>
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: colors.accent,
-                foregroundColor: colors.onAccent,
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                elevation: 0,
-              ),
-              onPressed: _compose,
-              icon: const Icon(Icons.edit_note_rounded, size: 18),
-              label: const Text(
-                'Post',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-              ),
+            padding: const EdgeInsets.only(right: 12),
+            child: ChromeButton.icon(
+              icon: Icons.add_rounded,
+              tooltip: 'New post',
+              onTap: _compose,
             ),
           ),
         ],
@@ -166,39 +182,16 @@ class _OrgPostsScreenState extends State<OrgPostsScreen>
           preferredSize: const Size.fromHeight(44),
           child: Align(
             alignment: Alignment.centerLeft,
+            // Styled by tabBarTheme, exactly like the student feed.
             child: TabBar(
               controller: controller,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
-              dividerColor: colors.divider,
-              indicatorSize: TabBarIndicatorSize.label,
-              indicatorColor: colors.accent,
-              indicatorWeight: 3,
-              labelColor: colors.textPrimary,
-              unselectedLabelColor: colors.textSecondary,
-              labelStyle: const TextStyle(
-                fontSize: 14.5,
-                fontWeight: FontWeight.w700,
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontSize: 14.5,
-                fontWeight: FontWeight.w500,
-              ),
+              indicatorWeight: 2,
               onTap: (i) => feed.load(feed.tabs[i]),
               tabs: feed.tabs.map((t) => Tab(text: t.label)).toList(),
             ),
           ),
-        ),
-      ),
-
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _compose,
-        backgroundColor: colors.accent,
-        foregroundColor: colors.onAccent,
-        icon: const Icon(Icons.edit_rounded, size: 20),
-        label: const Text(
-          'Post',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
         ),
       ),
 
@@ -266,9 +259,9 @@ class _OrgFeedListState extends State<_OrgFeedList>
         onRefresh: () => feed.load(widget.tab, refresh: true),
         child: ListView(
           controller: _controller,
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.fromLTRB(32, MediaQuery.paddingOf(context).top + 32,
+              32, AppChrome.navClearance(context)),
           children: [
-            const SizedBox(height: 60),
             EmptyState(
               icon: _emptyIcon(widget.tab),
               title: _emptyTitle(widget.tab),
@@ -285,7 +278,11 @@ class _OrgFeedListState extends State<_OrgFeedList>
       onRefresh: () => feed.load(widget.tab, refresh: true),
       child: ListView.builder(
         controller: _controller,
-        padding: const EdgeInsets.only(top: 8, bottom: 90),
+        // Under the glass header and above the floating tab bar.
+        padding: EdgeInsets.only(
+          top: MediaQuery.paddingOf(context).top + 8,
+          bottom: AppChrome.navClearance(context),
+        ),
         itemCount: posts.length + 1,
         itemBuilder: (context, index) {
           if (index >= posts.length) {

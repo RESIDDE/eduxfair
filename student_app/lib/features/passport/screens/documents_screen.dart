@@ -1,10 +1,10 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/document_files.dart';
+import '../../../core/widgets/document_viewer.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../models/passport_document.dart';
 import '../providers/passport_provider.dart';
@@ -35,14 +35,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
     // `withData: true` is essential: on web there is no file path at all, and
     // asking for bytes is the one approach that works on all three platforms.
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'doc', 'docx'],
-      withData: true,
-    );
-
-    if (result == null || result.files.isEmpty || !mounted) return;
-    final file = result.files.first;
+    final file = await DocumentFiles.pick();
+    if (file == null || !mounted) return;
     final bytes = file.bytes;
 
     if (bytes == null) {
@@ -51,7 +45,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     }
     // Matches the bucket's own limit, so the student hears about it before
     // spending their data allowance on the upload.
-    if (bytes.length > 20 * 1024 * 1024) {
+    if (bytes.length > DocumentFiles.maxBytes) {
       _toast('That file is larger than 20 MB.', isError: true);
       return;
     }
@@ -61,7 +55,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       kind: kind,
       fileName: file.name,
       bytes: bytes,
-      mime: _mimeFor(file.extension),
+      mime: DocumentFiles.mimeFor(file.extension),
     );
 
     if (!mounted) return;
@@ -98,21 +92,15 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         ),
       );
 
-  Future<void> _view(PassportDocument doc) async {
-    final provider = context.read<PassportProvider>();
-    final url = await provider.documentUrl(doc);
-    if (!mounted) return;
-
-    if (url == null) {
-      _toast(provider.error ?? 'Could not open that document.', isError: true);
-      return;
-    }
-
-    final uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) _toast('Could not open that document.', isError: true);
-    }
-  }
+  /// Opens in the app's own viewer rather than handing the file to a browser.
+  Future<void> _view(PassportDocument doc) => openDocument(
+        context,
+        bucket: AppConstants.bucketPassportDocs,
+        path: doc.storagePath,
+        fileName: doc.fileName,
+        mime: doc.mime,
+        title: doc.kindLabel,
+      );
 
   Future<void> _confirmDelete(PassportDocument doc) async {
     final confirmed = await showDialog<bool>(
@@ -156,17 +144,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       ),
     );
   }
-
-  static String? _mimeFor(String? extension) => switch (extension?.toLowerCase()) {
-        'pdf' => 'application/pdf',
-        'jpg' || 'jpeg' => 'image/jpeg',
-        'png' => 'image/png',
-        'heic' => 'image/heic',
-        'doc' => 'application/msword',
-        'docx' =>
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        _ => null,
-      };
 
   static IconData _iconFor(String kind) => switch (kind) {
         'transcript' => Icons.description_outlined,

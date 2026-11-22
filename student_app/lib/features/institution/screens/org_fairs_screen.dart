@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/supabase/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/app_back_button.dart';
 import '../../../core/widgets/custom_text_field.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/user_avatar.dart';
+import '../widgets/org_ui.dart';
 import '../models/org_fair.dart';
 import '../providers/institution_provider.dart';
 
@@ -422,14 +423,6 @@ class _OrgFairsScreenState extends State<OrgFairsScreen> {
       appBar: AppBar(
         leading: const AppBackButton(),
         title: const Text('Fairs and booths'),
-        actions: [
-          IconButton(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
-          ),
-          const SizedBox(width: 4),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: _load,
@@ -438,21 +431,18 @@ class _OrgFairsScreenState extends State<OrgFairsScreen> {
           children: [
             // If multiple fairs, show picker
             if (_exhibitors.length > 1) ...[
-              DropdownButtonFormField<String>(
-                initialValue: exhibitor.id,
-                decoration: InputDecoration(
-                  labelText: 'Select Fair',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              // Fairs as pills: you are at one at a time, and switching is a
+              // tap rather than a dropdown.
+              Padding(
+                padding: EdgeInsets.zero,
+                child: OrgFilterBar<String>(
+                  padding: EdgeInsets.zero,
+                  selected: exhibitor.id,
+                  onSelected: (v) => setState(() => _selectedExhibitorId = v),
+                  options: [
+                    for (final e in _exhibitors) (e.id, e.fair?.name ?? 'Fair'),
+                  ],
                 ),
-                items: _exhibitors.map((e) {
-                  return DropdownMenuItem(
-                    value: e.id,
-                    child: Text(e.fair?.name ?? 'Fair', overflow: TextOverflow.ellipsis),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  if (val != null) setState(() => _selectedExhibitorId = val);
-                },
               ),
               const SizedBox(height: 16),
             ],
@@ -582,94 +572,59 @@ class _OrgFairsScreenState extends State<OrgFairsScreen> {
 
             const SizedBox(height: 20),
 
-            // Statistics Strip
-            Row(
+            // Statistics — plain numbers in the text colour, like Home.
+            GridView.count(
+              crossAxisCount: 2,
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 2.3,
               children: [
-                Expanded(
-                  child: _StatCard(
-                    title: 'Leads met',
-                    value: '${allBoothVisits.length}',
-                    color: colors.primary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatCard(
-                    title: 'Follow-ups',
-                    value: '${allBoothVisits.where((v) => v.followUpRequested).length}',
-                    color: colors.accent,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatCard(
-                    title: 'Scholarships',
-                    value: '${allBoothVisits.where((v) => v.scholarshipDiscussed).length}',
-                    color: colors.warning,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatCard(
+                _StatCard(title: 'Students met', value: '${allBoothVisits.length}'),
+                _StatCard(
+                    title: 'Want a follow-up',
+                    value: '${allBoothVisits.where((v) => v.followUpRequested).length}'),
+                _StatCard(
+                    title: 'Scholarship questions',
+                    value: '${allBoothVisits.where((v) => v.scholarshipDiscussed).length}'),
+                _StatCard(
                     title: 'High interest',
-                    value: '${allBoothVisits.where((v) => v.interestLevel == 'high').length}',
-                    color: colors.success,
-                  ),
-                ),
+                    value: '${allBoothVisits.where((v) => v.interestLevel == 'high').length}'),
               ],
             ),
 
-            const SizedBox(height: 24),
-
-            // Filter Chips
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Booth leads (${leads.length})', style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _FilterChip(
-                        label: 'All',
-                        selected: _leadFilter == 'all',
-                        onTap: () => setState(() => _leadFilter = 'all'),
-                      ),
-                      const SizedBox(width: 6),
-                      _FilterChip(
-                        label: 'Follow-up',
-                        selected: _leadFilter == 'follow_up',
-                        onTap: () => setState(() => _leadFilter = 'follow_up'),
-                      ),
-                      const SizedBox(width: 6),
-                      _FilterChip(
-                        label: 'High fit',
-                        selected: _leadFilter == 'high',
-                        onTap: () => setState(() => _leadFilter = 'high'),
-                      ),
-                    ],
-                  ),
-                ),
+            OrgSectionLabel('Students you met',
+                count: leads.length,
+                padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
+            OrgFilterBar<String>(
+              padding: EdgeInsets.zero,
+              selected: _leadFilter,
+              onSelected: (v) => setState(() => _leadFilter = v),
+              options: const [
+                ('all', 'Everyone'),
+                ('follow_up', 'Want a follow-up'),
+                ('high', 'High interest'),
               ],
             ),
-
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
             if (leads.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 36),
                 child: Center(
                   child: Text(
-                    'No leads recorded yet under this filter.',
+                    'Nobody here yet.',
                     style: text.bodyMedium?.copyWith(color: colors.textSecondary),
                   ),
                 ),
               )
             else
-              ...leads.map((lead) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _LeadCard(lead: lead),
-                  )),
+              OrgGroup(
+                margin: EdgeInsets.zero,
+                children: [for (final lead in leads) _LeadRow(lead: lead)],
+              ),
           ],
         ),
       ),
@@ -680,9 +635,8 @@ class _OrgFairsScreenState extends State<OrgFairsScreen> {
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
-  final Color color;
 
-  const _StatCard({required this.title, required this.value, required this.color});
+  const _StatCard({required this.title, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -690,23 +644,22 @@ class _StatCard extends StatelessWidget {
     final text = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: colors.border),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            value,
-            style: text.titleLarge?.copyWith(fontWeight: FontWeight.w800, color: color),
-          ),
-          const SizedBox(height: 2),
+          Text(value,
+              style: text.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.3)),
           Text(
             title,
-            style: text.labelSmall?.copyWith(fontSize: 10, color: colors.textSecondary),
-            textAlign: TextAlign.center,
+            style: text.bodySmall?.copyWith(color: colors.textSecondary),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -716,180 +669,39 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _FilterChip({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected ? colors.accent.withValues(alpha: 0.15) : colors.surfaceVariant,
-          borderRadius: BorderRadius.circular(8),
-          border: selected ? Border.all(color: colors.accent) : null,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-            color: selected ? colors.accent : colors.textSecondary,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LeadCard extends StatelessWidget {
+class _LeadRow extends StatelessWidget {
   final OrgBoothLead lead;
 
-  const _LeadCard({required this.lead});
-
-  Color _levelColor(BuildContext context, String level) {
-    final colors = context.colors;
-    switch (level) {
-      case 'high':
-        return colors.success;
-      case 'medium':
-        return colors.info;
-      default:
-        return colors.textSecondary;
-    }
-  }
+  const _LeadRow({required this.lead});
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final text = Theme.of(context).textTheme;
-    final lvlColor = _levelColor(context, lead.interestLevel);
+    final initials = lead.studentName
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
+    final programme = lead.programName ?? lead.programInterest;
+    final note = (lead.note ?? '').trim();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: colors.surfaceVariant,
-                child: Text(
-                  lead.studentName.isNotEmpty ? lead.studentName[0].toUpperCase() : 'S',
-                  style: text.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(lead.studentName, style: text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-                    if (lead.studentCountry != null)
-                      Text(
-                        AppConstants.homeCountries[lead.studentCountry] ?? lead.studentCountry!,
-                        style: text.bodySmall?.copyWith(color: colors.textSecondary),
-                      ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: lvlColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${lead.interestLevel.toUpperCase()} FIT',
-                  style: text.labelSmall?.copyWith(color: lvlColor, fontWeight: FontWeight.bold, fontSize: 10),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          if (lead.programName != null || lead.programInterest != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: colors.surfaceVariant.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.school_outlined, size: 14, color: colors.accent),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      lead.programName ?? lead.programInterest!,
-                      style: text.bodySmall?.copyWith(fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
-
-          Row(
-            children: [
-              if (lead.followUpRequested)
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: colors.accent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'Follow-up requested',
-                    style: text.labelSmall?.copyWith(color: colors.accent, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              if (lead.scholarshipDiscussed)
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: colors.warning.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'Scholarship discussed',
-                    style: text.labelSmall?.copyWith(color: colors.warning, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              const Spacer(),
-              Text(
-                formatDateTime(lead.createdAt),
-                style: text.labelSmall?.copyWith(color: colors.textLight),
-              ),
-            ],
-          ),
-
-          if (lead.note != null && lead.note!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              '“${lead.note}”',
-              style: text.bodySmall?.copyWith(fontStyle: FontStyle.italic, color: colors.textSecondary),
-            ),
-          ],
-        ],
-      ),
+    return OrgRow(
+      leading: UserAvatar(initials: initials.isEmpty ? 'S' : initials, size: 44),
+      title: lead.studentName,
+      meta: formatRelative(lead.createdAt),
+      subtitle: [
+        if (lead.studentCountry != null) countryLabel(lead.studentCountry),
+        if (programme != null) programme,
+        if (note.isNotEmpty) '“$note”',
+      ].join(' · '),
+      tags: [
+        if (lead.interestLevel == 'high')
+          OrgTag('High interest', tone: colors.success),
+        if (lead.interestLevel == 'medium') const OrgTag('Some interest'),
+        if (lead.followUpRequested) const OrgTag('Wants a follow-up'),
+        if (lead.scholarshipDiscussed) const OrgTag('Scholarships'),
+      ],
     );
   }
 }

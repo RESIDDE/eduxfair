@@ -23,7 +23,10 @@ import { adminClient, json, preflight, requireUser } from '../_shared/deps.ts';
 const OWNED_FILES: Array<{ bucket: string; table: string; column: string; owner: string }> = [
   { bucket: 'passport-docs', table: 'passport_documents', column: 'storage_path', owner: 'profile_id' },
   { bucket: 'post-media', table: 'post_media', column: 'storage_path', owner: 'author_id' },
-  { bucket: 'message-attachments', table: 'message_attachments', column: 'storage_path', owner: 'sender_id' },
+  // Attachments live on `messages` itself. This used to name a table called
+  // `message_attachments`, which does not exist — the query failed inside the
+  // try below, so nobody's chat attachments were ever removed.
+  { bucket: 'message-attachments', table: 'messages', column: 'attachment_path', owner: 'sender_id' },
 ];
 
 Deno.serve(async (req) => {
@@ -86,11 +89,31 @@ Deno.serve(async (req) => {
   // here, so a half-finished delete cannot be left behind by a dropped
   // connection. The function is SECURITY DEFINER and takes the id it is
   // given, which is why only the service role may execute it.
-  const { error: purgeError } = await admin.rpc('purge_account', {
+  const { data: removedInstitutions, error: purgeError } = await admin.rpc('purge_account', {
     p_profile_id: uid,
   });
   if (purgeError) {
     return json({ error: `could not delete account data: ${purgeError.message}` }, 500);
+  }
+
+  // A staff member who was the last person at their institution takes it with
+  // them (see purge_account). Its logo and prospectus media are stored under
+  // the institution's id, so they are cleared here — after the rows, because
+  // a half-deleted institution with its files gone is worse than the reverse.
+  for (const institutionId of (removedInstitutions as string[] | null) ?? []) {
+    for (const bucket of ['institution-logos', 'institution-media']) {
+      try {
+        const { data: files } = await admin.storage.from(bucket).list(institutionId, { limit: 1000 });
+        if (files?.length) {
+          await admin.storage
+            .from(bucket)
+            .remove(files.map((f) => `${institutionId}/${f.name}`));
+        }
+      } catch (_) {
+        // Best effort, as above: the rows are gone, and a stray file is
+        // recoverable by an admin sweep.
+      }
+    }
   }
 
   // ── 3. The login itself ────────────────────────────────────────────────

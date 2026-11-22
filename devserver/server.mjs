@@ -69,6 +69,46 @@ function sendError(res, err) {
   sendJson(res, status, body);
 }
 
+/**
+ * The file inside an upload body.
+ *
+ * supabase-js sends the bytes as they are; the Dart client (the Flutter app)
+ * sends multipart/form-data — a `cacheControl` field and the file. Hosted
+ * Supabase unpacks the multipart form; this used to store the whole envelope,
+ * boundaries and all, so every file the app uploaded came back ~370 bytes
+ * longer and no longer opened as a PDF or an image.
+ */
+function unwrapUpload(raw, contentTypeHeader = '') {
+  const match = /multipart\/form-data;\s*boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentTypeHeader);
+  if (!match) return { bytes: raw, contentType: contentTypeHeader };
+
+  const boundary = Buffer.from(`--${match[1] ?? match[2]}`);
+  const parts = [];
+  let at = raw.indexOf(boundary);
+  while (at !== -1) {
+    const start = at + boundary.length;
+    const next = raw.indexOf(boundary, start);
+    if (next === -1) break;
+    parts.push(raw.subarray(start, next));
+    at = next;
+  }
+
+  for (const part of parts) {
+    // Each part: CRLF, headers, CRLF CRLF, body, CRLF.
+    const headerEnd = part.indexOf('\r\n\r\n');
+    if (headerEnd === -1) continue;
+    const headers = part.subarray(0, headerEnd).toString('latin1');
+    if (/name="cacheControl"/i.test(headers)) continue;
+    let body = part.subarray(headerEnd + 4);
+    if (body.subarray(body.length - 2).toString('latin1') === '\r\n') {
+      body = body.subarray(0, body.length - 2);
+    }
+    const type = /content-type:\s*([^\r\n]+)/i.exec(headers)?.[1]?.trim();
+    return { bytes: body, contentType: type ?? 'application/octet-stream' };
+  }
+  return { bytes: raw, contentType: contentTypeHeader };
+}
+
 async function readBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -511,6 +551,29 @@ async function handleStorage(req, res, url) {
       return;
     }
 
+    // GET /object/<bucket>/<path>, or /object/authenticated/<bucket>/<path> —
+    // a download with the caller's own session. Hosted Supabase serves both;
+    // without this, `download()` failed locally for every private file.
+    if (route.startsWith('object/') && req.method === 'GET') {
+      const rest = route.replace(/^object\/(authenticated\/)?/, '');
+      const [bucket, ...pathParts] = rest.split('/');
+      const object = await storage.readAuthenticated(
+        claims, bucket, decodeURIComponent(pathParts.join('/')),
+      );
+      if (!object) {
+        const error = new Error('Object not found');
+        error.status = 404;
+        throw error;
+      }
+      res.writeHead(200, {
+        ...CORS,
+        'Content-Type': object.mime ?? 'application/octet-stream',
+        'Content-Length': object.bytes.length,
+      });
+      res.end(Buffer.from(object.bytes));
+      return;
+    }
+
     // DELETE /object/<bucket>  with { prefixes: [...] }
     if (route.startsWith('object/') && req.method === 'DELETE') {
       const rest = route.replace('object/', '');
@@ -526,14 +589,15 @@ async function handleStorage(req, res, url) {
     if (route.startsWith('object/') && (req.method === 'POST' || req.method === 'PUT')) {
       const [bucket, ...rest] = route.replace('object/', '').split('/');
       const name = rest.join('/');
-      const bytes = await readBody(req);
+      const raw = await readBody(req);
+      const { bytes, contentType } = unwrapUpload(raw, req.headers['content-type']);
 
       const result = await storage.upload({
         claims,
         bucket,
         name,
         bytes,
-        contentType: req.headers['content-type'],
+        contentType,
         upsert:
           req.method === 'PUT' ||
           String(req.headers['x-upsert'] ?? '').toLowerCase() === 'true',
@@ -572,6 +636,31 @@ async function handleFunctions(req, res, url) {
         scope: 'student',
         matched: result.rows[0]?.matched ?? 0,
       });
+    }
+
+    // Account deletion, as supabase/functions/delete-account does it: the
+    // caller's JWT decides whose account goes, a typed confirmation guards
+    // against stray POSTs, `purge_account` (real SQL, one transaction) removes
+    // the rows, and the login goes last so a failure leaves an account its
+    // owner can still sign in to and retry. Storage cleanup is skipped — the
+    // dev server's files live in memory and vanish on restart anyway.
+    if (name === 'delete-account') {
+      if (!claims?.sub) {
+        const error = new Error('authentication required');
+        error.status = 401;
+        throw error;
+      }
+      if (body.confirm !== 'DELETE') {
+        const error = new Error('confirmation required');
+        error.status = 400;
+        throw error;
+      }
+      await asService(async ({ query }) => {
+        await query('select purge_account($1)', [claims.sub]);
+        await query('delete from auth.users where id = $1', [claims.sub]);
+      });
+      console.log(`  🗑  deleted account ${claims.sub}`);
+      return sendJson(res, 200, { deleted: true });
     }
 
     // The other two send email, which this server cannot do. Returning a

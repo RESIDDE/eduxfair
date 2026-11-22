@@ -6,8 +6,11 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/institution_avatar.dart';
+import '../../../core/widgets/pill_button.dart';
+import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/verified_badge.dart';
 import '../../applications/providers/applications_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../messages/providers/messages_provider.dart';
 import '../../passport/providers/passport_provider.dart';
 import '../models/program.dart';
@@ -47,6 +50,9 @@ class _ProgramScreenState extends State<ProgramScreen> {
     });
   }
 
+  /// While the draft is being created, so the button cannot be tapped twice.
+  bool _starting = false;
+
   Future<void> _apply() async {
     final program = _program;
     if (program == null) return;
@@ -55,58 +61,30 @@ class _ProgramScreenState extends State<ProgramScreen> {
         ? null
         : await showModalBottomSheet<String>(
             context: context,
-            showDragHandle: true,
-            builder: (context) => SafeArea(
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                    child: Text('Which intake?',
-                        style: Theme.of(context).textTheme.titleLarge),
-                  ),
-                  ...program.intakes.map(
-                    (i) => ListTile(
-                      title: Text(i),
-                      onTap: () => Navigator.of(context).pop(i),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            useRootNavigator: true,
+            builder: (sheet) => _IntakeSheet(intakes: program.intakes),
           );
 
-    if (!mounted) return;
+    // Picking no intake from a sheet that offered some is a "not now".
+    if (!mounted || (program.intakes.isNotEmpty && intake == null)) return;
 
     // Says plainly what submitting will do, since it grants the institution
     // access to the passport. A student should never discover that afterwards.
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Start this application?'),
-        content: Text(
-          'We will create a draft for ${program.name}. You can attach '
-          'documents and review it before submitting.\n\n'
-          'When you submit, ${program.institution?.name ?? 'the institution'} '
-          'will be able to see your passport. You can revoke that later.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(minimumSize: const Size(0, 40)),
-            child: const Text('Create draft'),
-          ),
-        ],
+      useRootNavigator: true,
+      isScrollControlled: true,
+      builder: (sheet) => _StartSheet(
+        programme: program.name,
+        institution: program.institution?.name ?? 'the institution',
+        intake: intake,
       ),
     );
 
     if (confirmed != true || !mounted) return;
 
     final applications = context.read<ApplicationsProvider>();
+    setState(() => _starting = true);
     final id = await applications.start(
       institutionId: program.institutionId,
       programId: program.id,
@@ -114,10 +92,13 @@ class _ProgramScreenState extends State<ProgramScreen> {
     );
 
     if (!mounted) return;
+    setState(() => _starting = false);
     if (id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(applications.error ?? 'Could not start an application.'),
+          content: Text(
+            applications.error ?? 'Could not start an application.',
+          ),
           backgroundColor: context.colors.error,
         ),
       );
@@ -169,13 +150,18 @@ class _ProgramScreenState extends State<ProgramScreen> {
 
     final institution = program.institution;
     final isSaved = discover.isSaved(program.id);
+    // Staff open their own programmes from the page preview. Saving, applying,
+    // asking and booking are a student's actions, so they are left out.
+    final isStudent = context.watch<AuthProvider>().user?.isStudent ?? true;
 
     // How the student actually measures up. Shown even when they fall short,
     // because a student deserves to know before spending an application on it.
-    final meetsGrade = passport?.normalizedGrade != null &&
+    final meetsGrade =
+        passport?.normalizedGrade != null &&
         program.normalizedMinGrade != null &&
         passport!.normalizedGrade! >= program.normalizedMinGrade!;
-    final meetsEnglish = passport?.englishBand != null &&
+    final meetsEnglish =
+        passport?.englishBand != null &&
         program.minEnglishBand != null &&
         passport!.englishBand! >= program.minEnglishBand!;
 
@@ -183,14 +169,17 @@ class _ProgramScreenState extends State<ProgramScreen> {
       appBar: AppBar(
         title: const Text('Program'),
         actions: [
-          IconButton(
-            tooltip: isSaved ? 'Saved' : 'Save',
-            onPressed: () => discover.toggleSaved(program.id),
-            icon: Icon(
-              isSaved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-              color: isSaved ? colors.accent : null,
+          if (isStudent)
+            IconButton(
+              tooltip: isSaved ? 'Saved' : 'Save',
+              onPressed: () => discover.toggleSaved(program.id),
+              icon: Icon(
+                isSaved
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_border_rounded,
+                color: isSaved ? colors.accent : null,
+              ),
             ),
-          ),
           const SizedBox(width: 4),
         ],
       ),
@@ -240,10 +229,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _Fact(
-                icon: Icons.school_outlined,
-                label: program.levelLabel,
-              ),
+              _Fact(icon: Icons.school_outlined, label: program.levelLabel),
               _Fact(
                 icon: Icons.schedule_rounded,
                 label: program.durationDisplay,
@@ -278,10 +264,10 @@ class _ProgramScreenState extends State<ProgramScreen> {
             status: program.normalizedMinGrade == null
                 ? _ReqStatus.unknown
                 : passport?.normalizedGrade == null
-                    ? _ReqStatus.needsInfo
-                    : meetsGrade
-                        ? _ReqStatus.met
-                        : _ReqStatus.notMet,
+                ? _ReqStatus.needsInfo
+                : meetsGrade
+                ? _ReqStatus.met
+                : _ReqStatus.notMet,
             yourValue: passport?.gradeDisplay,
           ),
           const SizedBox(height: 10),
@@ -291,10 +277,10 @@ class _ProgramScreenState extends State<ProgramScreen> {
             status: program.minEnglishBand == null
                 ? _ReqStatus.unknown
                 : passport?.englishBand == null
-                    ? _ReqStatus.needsInfo
-                    : meetsEnglish
-                        ? _ReqStatus.met
-                        : _ReqStatus.notMet,
+                ? _ReqStatus.needsInfo
+                : meetsEnglish
+                ? _ReqStatus.met
+                : _ReqStatus.notMet,
             yourValue: passport?.englishBand == null
                 ? null
                 : 'IELTS ${passport!.englishBand!.toStringAsFixed(1)} equivalent',
@@ -325,41 +311,68 @@ class _ProgramScreenState extends State<ProgramScreen> {
           ],
 
           const SizedBox(height: 28),
-          ElevatedButton.icon(
-            onPressed: _apply,
-            icon: const Icon(Icons.send_rounded, size: 18),
-            label: const Text('Start an application'),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _message,
-                  icon: const Icon(Icons.forum_outlined, size: 18),
-                  label: const Text('Ask a question'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 48),
+          if (!isStudent)
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              decoration: BoxDecoration(
+                color: colors.surfaceVariant,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.visibility_outlined,
+                    size: 18,
+                    color: colors.textSecondary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'This is how students see this programme. They can apply, '
+                      'ask a question or book a meeting from here.',
+                      style: text.bodySmall?.copyWith(
+                        height: 1.4,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            PillButton(
+              label: 'Start an application',
+              icon: Icons.arrow_forward_rounded,
+              primary: true,
+              busy: _starting,
+              height: 54,
+              onTap: _apply,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: PillButton(
+                    label: 'Ask a question',
+                    icon: Icons.chat_bubble_outline_rounded,
+                    onTap: _message,
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => context.push(
-                    '${AppConstants.routeAppointmentRequest}'
-                    '?institution=${program.institutionId}'
-                    '&program=${program.id}',
-                  ),
-                  icon: const Icon(Icons.event_available_rounded, size: 18),
-                  label: const Text('Meet me'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 48),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: PillButton(
+                    label: 'Meet me',
+                    icon: Icons.event_available_outlined,
+                    onTap: () => context.push(
+                      '${AppConstants.routeAppointmentRequest}'
+                      '?institution=${program.institutionId}'
+                      '&program=${program.id}',
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -396,9 +409,7 @@ class _Fact extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .labelMedium
+            style: Theme.of(context).textTheme.labelMedium
                 ?.copyWith(color: fg, fontWeight: FontWeight.w600),
           ),
         ],
@@ -433,8 +444,10 @@ class _Section extends StatelessWidget {
             children: [
               for (var i = 0; i < rows.length; i++) ...[
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 13,
+                  ),
                   child: Row(
                     children: [
                       SizedBox(
@@ -455,10 +468,11 @@ class _Section extends StatelessWidget {
                 ),
                 if (i < rows.length - 1)
                   Divider(
-                      height: 1,
-                      color: colors.divider,
-                      indent: 16,
-                      endIndent: 16),
+                    height: 1,
+                    color: colors.divider,
+                    indent: 16,
+                    endIndent: 16,
+                  ),
               ],
             ],
           ),
@@ -490,25 +504,25 @@ class _RequirementRow extends StatelessWidget {
 
     final (icon, color, note) = switch (status) {
       _ReqStatus.met => (
-          Icons.check_circle_rounded,
-          colors.success,
-          'You meet this',
-        ),
+        Icons.check_circle_rounded,
+        colors.success,
+        'You meet this',
+      ),
       _ReqStatus.notMet => (
-          Icons.info_rounded,
-          colors.warning,
-          'Below the stated minimum — you can still apply',
-        ),
+        Icons.info_rounded,
+        colors.warning,
+        'Below the stated minimum — you can still apply',
+      ),
       _ReqStatus.needsInfo => (
-          Icons.help_outline_rounded,
-          colors.textLight,
-          'Add this to your passport to compare',
-        ),
+        Icons.help_outline_rounded,
+        colors.textLight,
+        'Add this to your passport to compare',
+      ),
       _ReqStatus.unknown => (
-          Icons.remove_circle_outline_rounded,
-          colors.textLight,
-          'Not published by the institution',
-        ),
+        Icons.remove_circle_outline_rounded,
+        colors.textLight,
+        'Not published by the institution',
+      ),
     };
 
     return Container(
@@ -538,6 +552,220 @@ class _RequirementRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Sheets ───────────────────────────────────────────────────────────────────
+
+/// "Which intake?" — one row per intake, a calendar mark, a chevron.
+class _IntakeSheet extends StatelessWidget {
+  final List<String> intakes;
+  const _IntakeSheet({required this.intakes});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = Theme.of(context).textTheme;
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+            child: Text(
+              'Which intake?',
+              style: text.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Text(
+              'When you would like to start.',
+              style: text.bodyMedium?.copyWith(color: colors.textSecondary),
+            ),
+          ),
+          for (final intake in intakes)
+            Pressable.surface(
+              onTap: () => Navigator.of(context).pop(intake),
+              semanticLabel: intake,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 20, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: colors.surfaceVariant,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.calendar_month_outlined,
+                        size: 20,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        intake,
+                        style: text.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded, color: colors.textLight),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+/// The confirmation before a draft is created. A sheet rather than an alert:
+/// the two facts a student must know are set out as points, and the answer is
+/// a full-width button under the thumb.
+class _StartSheet extends StatelessWidget {
+  final String programme;
+  final String institution;
+  final String? intake;
+
+  const _StartSheet({
+    required this.programme,
+    required this.institution,
+    this.intake,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = Theme.of(context).textTheme;
+
+    Widget point(IconData icon, String title, String detail) => Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: colors.surfaceVariant,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 19, color: colors.textPrimary),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  detail,
+                  style: text.bodySmall?.copyWith(
+                    color: colors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: colors.textPrimary,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.edit_document,
+                  size: 28,
+                  color: colors.background,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                'Start your application',
+                textAlign: TextAlign.center,
+                style: text.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Center(
+              child: Text(
+                [
+                  programme,
+                  institution,
+                  if (intake != null) intake!,
+                ].join(' · '),
+                textAlign: TextAlign.center,
+                style: text.bodyMedium?.copyWith(color: colors.textSecondary),
+              ),
+            ),
+            const SizedBox(height: 24),
+            point(
+              Icons.drafts_outlined,
+              'It starts as a draft',
+              'Nothing is sent yet. Attach documents and review it before you '
+                  'submit.',
+            ),
+            point(
+              Icons.lock_open_outlined,
+              'Submitting shares your passport',
+              '$institution will be able to see your Education Passport. You '
+                  'can take that back at any time.',
+            ),
+            const SizedBox(height: 8),
+            PillButton(
+              label: 'Create draft',
+              primary: true,
+              height: 54,
+              onTap: () => Navigator.of(context).pop(true),
+            ),
+            const SizedBox(height: 4),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                style: TextButton.styleFrom(
+                  foregroundColor: colors.textSecondary,
+                  minimumSize: const Size(0, 44),
+                ),
+                child: const Text('Not now'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

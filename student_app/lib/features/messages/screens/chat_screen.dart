@@ -6,14 +6,15 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/supabase/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/document_viewer.dart';
 import '../../../core/widgets/institution_avatar.dart';
 import '../../../core/widgets/user_avatar.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../social/screens/post_sheets.dart' show pickReportReason;
 import '../models/conversation.dart';
 import '../providers/messages_provider.dart';
 import '../widgets/voice_note.dart';
@@ -66,6 +67,26 @@ class _ChatScreenState extends State<ChatScreen> {
   /// which grants their passport name and not their social presence.
   String? _otherHandle;
 
+  /// Which sides have blocked this conversation. Either one closes it.
+  Set<String> _blockedSides = const {};
+
+  /// Which side the caller is on. Students are one side of every thread;
+  /// staff are the institution's.
+  String get _mySide =>
+      (context.read<AuthProvider>().user?.isStudent ?? true)
+          ? 'student'
+          : 'institution';
+
+  bool get _iBlocked => _blockedSides.contains(_mySide);
+  bool get _isBlocked => _blockedSides.isNotEmpty;
+
+  Future<void> _loadBlocks() async {
+    final sides = await context
+        .read<MessagesProvider>()
+        .blockedSides(widget.conversationId);
+    if (mounted) setState(() => _blockedSides = sides);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -77,6 +98,8 @@ class _ChatScreenState extends State<ChatScreen> {
       provider.subscribe(widget.conversationId);
       await provider.markRead(widget.conversationId);
       _scrollToBottom();
+      await _loadBlocks();
+      if (!mounted) return;
       await _resolveOtherHandle(provider);
     });
   }
@@ -336,6 +359,62 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  /// Guideline 1.2: a way to report what was said here, and a way to stop it.
+  Future<void> _report({Message? message}) async {
+    final reason = await pickReportReason(context);
+    if (reason == null || !mounted) return;
+    final provider = context.read<MessagesProvider>();
+    final ok = await provider.report(widget.conversationId, reason,
+        messageId: message?.id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok
+          ? 'Reported. An Eduxfair reviewer will look at it — thank you.'
+          : provider.error ?? 'Could not send that report.'),
+      backgroundColor: ok ? null : context.colors.error,
+    ));
+  }
+
+  Future<void> _toggleBlock() async {
+    final blocking = !_iBlocked;
+    if (blocking) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('Block this conversation?'),
+          content: Text(_mySide == 'student'
+              ? 'Neither you nor the institution will be able to send new '
+                  'messages here. You can unblock it at any time.'
+              : 'Neither your team nor the student will be able to send new '
+                  'messages here. Anyone on your team can unblock it.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialog).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialog).pop(true),
+              style: TextButton.styleFrom(foregroundColor: context.colors.error),
+              child: const Text('Block'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+    final provider = context.read<MessagesProvider>();
+    final ok = await provider.setBlocked(widget.conversationId, blocking);
+    if (!mounted) return;
+    if (ok) await _loadBlocks();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok
+          ? (blocking ? 'Conversation blocked.' : 'Conversation unblocked.')
+          : provider.error ?? 'Could not change that.'),
+      backgroundColor: ok ? null : context.colors.error,
+    ));
+  }
+
   /// Everything you can do to one message, in one sheet.
   ///
   /// Reactions sit along the top because that is the one action people take
@@ -406,6 +485,13 @@ class _ChatScreenState extends State<ChatScreen> {
                   title: const Text('Forward'),
                   onTap: () => Navigator.of(sheet).pop('forward'),
                 ),
+                if (!isMine)
+                  ListTile(
+                    leading: Icon(Icons.flag_outlined,
+                        color: context.colors.error),
+                    title: const Text('Report message'),
+                    onTap: () => Navigator.of(sheet).pop('report'),
+                  ),
                 ListTile(
                   leading: const Icon(Icons.visibility_off_outlined),
                   title: const Text('Delete for me'),
@@ -444,6 +530,10 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     if (choice == 'forward') {
       await _forward(message);
+      return;
+    }
+    if (choice == 'report') {
+      await _report(message: message);
       return;
     }
     await _delete(message, forEveryone: choice == 'everyone');
@@ -531,11 +621,19 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// A photo or file sent in the thread opens in the app's viewer.
   Future<void> _openAttachment(Message message) async {
-    final provider = context.read<MessagesProvider>();
-    final url = await provider.attachmentUrl(message);
-    if (!mounted || url == null) return;
-    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    final path = message.attachmentPath;
+    if (path == null) return;
+    await openDocument(
+      context,
+      bucket: AppConstants.bucketMessageAttachments,
+      path: path,
+      fileName: message.attachmentName.isEmpty
+          ? 'Attachment'
+          : message.attachmentName,
+      mime: message.attachmentMime,
+    );
   }
 
   static String? _mimeFor(String? ext) => switch (ext?.toLowerCase()) {
@@ -574,6 +672,32 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            icon: const Icon(Icons.more_vert_rounded),
+            onSelected: (v) => v == 'block' ? _toggleBlock() : _report(),
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'report',
+                child: Row(children: [
+                  Icon(Icons.flag_outlined, size: 20, color: colors.error),
+                  const SizedBox(width: 12),
+                  const Text('Report conversation'),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'block',
+                child: Row(children: [
+                  Icon(_iBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
+                      size: 20),
+                  const SizedBox(width: 12),
+                  Text(_iBlocked ? 'Unblock' : 'Block'),
+                ]),
+              ),
+            ],
+          ),
+        ],
         title: InkWell(
           // Tappable only when there is somewhere to go. A student's profile
           // is not reachable from a thread by design, so staff get the same
@@ -685,7 +809,12 @@ class _ChatScreenState extends State<ChatScreen> {
                 color: colors.surface,
                 border: Border(top: BorderSide(color: colors.divider)),
               ),
-              child: _recording
+              child: _isBlocked
+                  ? _BlockedNotice(
+                      byMe: _iBlocked,
+                      onUnblock: _toggleBlock,
+                    )
+                  : _recording
                   ? VoiceRecorderBar(
                       onComplete: _sendVoiceNote,
                       onCancel: () => setState(() => _recording = false),
@@ -746,6 +875,39 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Takes the composer's place in a blocked conversation.
+class _BlockedNotice extends StatelessWidget {
+  final bool byMe;
+  final VoidCallback onUnblock;
+  const _BlockedNotice({required this.byMe, required this.onUnblock});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      child: Row(
+        children: [
+          Icon(Icons.block_rounded, size: 18, color: colors.textSecondary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              byMe
+                  ? 'You blocked this conversation. Nobody can send new '
+                      'messages until you unblock it.'
+                  : 'You can no longer send messages in this conversation.',
+              style: text.bodySmall?.copyWith(height: 1.4),
+            ),
+          ),
+          if (byMe)
+            TextButton(onPressed: onUnblock, child: const Text('Unblock')),
         ],
       ),
     );

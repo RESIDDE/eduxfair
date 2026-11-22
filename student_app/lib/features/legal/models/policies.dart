@@ -2,7 +2,7 @@ import '../../../core/constants/app_constants.dart';
 import 'legal_document.dart';
 
 /// The date the policy text below last changed.
-const _lastUpdated = '9 November 2026';
+const _lastUpdated = '11 November 2026';
 
 /// The youngest someone may be and hold an account.
 ///
@@ -55,8 +55,8 @@ const privacyPolicy = LegalDocument(
         'Your Education Passport — your education history, grades, English '
             'test results, the fields and countries you are interested in, '
             'and any documents you upload, such as transcripts, certificates '
-            'or identity pages. This is the sensitive part, and it is the '
-            'part nobody sees without your say-so.',
+            'or identity pages. This is the sensitive part: no institution '
+            'sees it without your say-so.',
         'What you post — posts, comments, likes, reshares, saved items, who '
             'you follow, and any photos you attach.',
         'Messages and meetings — direct messages, voice notes, and your '
@@ -67,9 +67,27 @@ const privacyPolicy = LegalDocument(
       ],
     ),
     LegalSection(
+      heading: 'If you use the app for an institution',
+      body: [
+        'Staff of a university, college, embassy or agency use the same app. '
+            'For them we collect a name, a work email address and a password, '
+            'their role on the institution’s team, and what they write — '
+            'posts, replies to students, notes on applications and meeting '
+            'details.',
+        'The institution’s listing — its name, logo, prospectus, programmes, '
+            'contacts and posts — is public to everyone using the app, because '
+            'that is its purpose. A staff member’s name is shown to students '
+            'they message or meet.',
+        'A staff member can delete their account from More → Delete account. '
+            'If they are the last member of their institution’s team, the '
+            'institution’s listing and everything attached to it is deleted '
+            'too; otherwise it stays with their colleagues.',
+      ],
+    ),
+    LegalSection(
       heading: 'Who can see your Education Passport',
       body: [
-        'Only an institution you have granted access to. That grant is a '
+        'Among institutions, only one you have granted access to. That grant is a '
             'record you create — by applying, by requesting a meeting, or by '
             'connecting at a fair booth — and every one of them is listed in '
             'Settings → Who can see me, where you can revoke it.',
@@ -77,6 +95,24 @@ const privacyPolicy = LegalDocument(
             'card: your field of study, your target countries and an '
             'indication of how well you match a programme. It does not carry '
             'your name, your contact details or your documents.',
+      ],
+    ),
+    LegalSection(
+      heading: 'What our own team can see',
+      body: [
+        'A small number of authorised ${AppConstants.appName} staff can '
+            'access everything held on your account — your profile, your '
+            'Education Passport and the documents in it, your applications, '
+            'your posts and comments, and your messages and their '
+            'attachments.',
+        'They use that access only to run and protect the service: to '
+            'verify documents and institutions, to investigate reports and '
+            'keep people safe, to enforce our terms, to answer a request '
+            'you make to us, and where the law requires it. They do not use '
+            'it to advertise to you, and they do not pass it to '
+            'institutions.',
+        'Staff cannot see your password or the one-time codes we send you, '
+            'and cannot sign in as you.',
       ],
     ),
     LegalSection(
@@ -273,6 +309,21 @@ const termsOfService = LegalDocument(
       ],
     ),
     LegalSection(
+      heading: 'Using the service for an institution',
+      body: [
+        'If you register an institution you confirm you are authorised to act '
+            'for it, and that what you publish about it — programmes, fees, '
+            'entry requirements, scholarships and deadlines — is accurate.',
+        'A passport or document a student shares with your institution may be '
+            'used only to assess that student for admission. You may not copy '
+            'it out of the service for any other purpose, sell it, or pass it '
+            'to anyone outside your admissions team.',
+        'You must not ask students for payment, passwords or identity '
+            'documents outside the service’s own document requests, and you '
+            'must not promise an outcome you cannot give.',
+      ],
+    ),
+    LegalSection(
       heading: 'Moderation and enforcement',
       body: [
         'We may remove content and restrict, suspend or terminate an account '
@@ -286,7 +337,10 @@ const termsOfService = LegalDocument(
       heading: 'Ending your account',
       body: [
         'You can delete your account at any time from Settings → Delete '
-            'account. We may close an account that has broken these terms.',
+            'account, or for institution staff from More → Delete account. '
+            'If you are the last member of an institution’s team, the '
+            'institution is deleted with you. We may close an account that '
+            'has broken these terms.',
       ],
     ),
     LegalSection(
@@ -388,6 +442,9 @@ const communityGuidelines = LegalDocument(
             'neither sees the other’s posts, replies or profile, and '
             'neither can message the other. Muting is lighter — they vanish '
             'from your feed but remain reachable on their own profile.',
+        'In messages, the "…" menu of any conversation lets you block it: '
+            'nobody on either side can send anything new until you unblock '
+            'it. This works the same for students and for institutions.',
         'You can see and undo every block in Settings → Blocked accounts. '
             'Neither blocking nor muting tells the other person.',
       ],

@@ -94,6 +94,11 @@ class AppConstants {
   static const String routeOrgTeam = '/org/team';
   static const String routeOrgFollowers = '/org/followers';
   static const String routeOrgSettings = '/org/settings';
+  /// A student as this institution may see them: `/org/student/<match token>`.
+  static const String routeOrgStudent = '/org/student';
+  /// Shown to staff who follow a link meant for students. See
+  /// OrgStudentsOnlyScreen for why it is a page and not a redirect home.
+  static const String routeOrgStudentsOnly = '/org/for-students';
 
   static const String routeHome = '/home';
   static const String routePassport = '/passport';

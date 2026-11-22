@@ -1,0 +1,25 @@
+{
+  "name": "eduxfair-website",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "EduXFair public marketing site — home, privacy policy and terms.",
+  "scripts": {
+    "dev": "node scripts/sync-policies.mjs && vite",
+    "build": "node scripts/sync-policies.mjs && vite build",
+    "preview": "vite preview",
+    "sync": "node scripts/sync-policies.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.2",
+    "lucide-react": "^1.49.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.1",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.1"
+  }
+}

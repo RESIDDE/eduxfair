@@ -65,6 +65,8 @@ dependencies:
 
   # A call screen that lets the phone sleep is a bug.
   wakelock_plus: ^1.2.8
+  pdfrx: ^2.12.0
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:

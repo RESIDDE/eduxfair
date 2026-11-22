@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Check, Flag, Trash2, X } from 'lucide-react';
 import {
   Alert, Badge, Button, Dialog, EmptyState, Field, Loading,
@@ -26,6 +27,8 @@ const SUBJECTS = {
   comment: 'Comment',
   profile: 'Profile',
   space: 'Live Space',
+  message: 'Message',
+  conversation: 'Conversation',
 };
 
 /**
@@ -63,10 +66,14 @@ export default function AdminModerationPage() {
       setActionError('Only posts and comments can be removed from here.');
       return;
     }
-    const { error: rpcError } = await supabase.rpc('remove_post', {
-      p_post_id: report.subject_id,
-      p_reason: `Reported: ${REASONS[report.reason] ?? report.reason}`,
-    });
+    // A comment has its own remover. Sending a comment id to remove_post
+    // found no post and failed, so a reported comment could not be taken down.
+    const { error: rpcError } = report.subject_type === 'comment'
+      ? await supabase.rpc('remove_comment', { p_comment_id: report.subject_id })
+      : await supabase.rpc('remove_post', {
+        p_post_id: report.subject_id,
+        p_reason: `Reported: ${REASONS[report.reason] ?? report.reason}`,
+      });
     if (rpcError) setActionError(describeError(rpcError));
     else await reload();
   }
@@ -143,6 +150,11 @@ export default function AdminModerationPage() {
                     <p className="mt-2 text-[13px] leading-relaxed text-muted">
                       “{report.note}”
                     </p>
+                  )}
+
+                  {(report.subject_type === 'message'
+                    || report.subject_type === 'conversation') && (
+                    <ReportedConversation report={report} />
                   )}
 
                   <div className="mt-1.5 font-mono text-[11px] text-subtle">
@@ -267,5 +279,61 @@ function ResolveDialog({ report, outcome, reviewerId, onClose, onSaved }) {
         {error && <Alert tone="error">{error}</Alert>}
       </div>
     </Dialog>
+  );
+}
+
+/**
+ * What a reported message actually said, who sent it, and a way into the
+ * whole thread — a report about a conversation cannot be judged from an id.
+ */
+function ReportedConversation({ report }) {
+  const isMessage = report.subject_type === 'message';
+  const { data, loading } = useQuery(async (client) => {
+    if (!isMessage) {
+      return { data: { conversationId: report.subject_id }, error: null };
+    }
+    const { data: message, error } = await client
+      .from('messages')
+      .select('id, conversation_id, sender_id, body, kind, attachment_name, created_at, deleted_at')
+      .eq('id', report.subject_id)
+      .maybeSingle();
+    if (error || !message) return { data: { conversationId: null }, error };
+    const { data: sender } = await client
+      .from('admin_people')
+      .select('id, full_name, email')
+      .eq('id', message.sender_id)
+      .maybeSingle();
+    return { data: { conversationId: message.conversation_id, message, sender }, error: null };
+  }, [report.id]);
+
+  if (loading) return <div className="mt-2 text-[12px] text-subtle">Loading the message…</div>;
+  if (!data?.conversationId) {
+    return <div className="mt-2 text-[12px] text-subtle">The message no longer exists.</div>;
+  }
+  return (
+    <div className="mt-2 flex flex-col gap-1.5">
+      {data.message && (
+        <div className="rounded-tile bg-white/[0.04] px-3 py-2 text-[13px]">
+          <div className="mb-0.5 text-[11.5px] text-subtle">
+            {data.sender ? (
+              <Link to={`/admin/people/${data.sender.id}`} className="hover:text-accent">
+                {data.sender.full_name || data.sender.email}
+              </Link>
+            ) : 'Unknown sender'}
+            {' '}· {formatDateTime(data.message.created_at)}
+            {data.message.deleted_at && ' · deleted by sender'}
+          </div>
+          <p className="whitespace-pre-wrap">
+            {data.message.body || data.message.attachment_name || `(${data.message.kind})`}
+          </p>
+        </div>
+      )}
+      <Link
+        to={`/admin/messages?conversation=${data.conversationId}`}
+        className="w-fit text-[12.5px] font-semibold text-accent hover:underline"
+      >
+        Open the whole conversation →
+      </Link>
+    </div>
   );
 }

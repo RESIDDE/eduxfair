@@ -48,6 +48,17 @@ safety reports. A report you filed survives with your name removed — otherwise
 deleting an account would be a way to withdraw a child-safety report about
 someone else.
 
+**The web door, for Google Play.** Play's Data safety form requires a URL
+where people can delete their account *without* the app installed. That is
+`https://educationfair.com.ng/delete-account/` (`website/src/pages/DeleteAccount.jsx`).
+It signs the person in (which is the re-authentication), shows the same
+what-goes / what-stays lists and, for staff, the same per-institution impact
+from `my_deletion_impact`, takes the same typed `DELETE`, and calls the same
+`delete-account` function. One deletion, two doors.
+
+The in-app path stays the primary one: Apple requires deletion to be
+*started* in the app, so do not replace the in-app button with a link out.
+
 ---
 
 ## 5.1.1(i) Privacy policy · Terms · Community Guidelines
