@@ -42,6 +42,20 @@ const KEPT = [
   'Any safety report you filed about someone else. The report stays, with your name removed from it, so that deleting an account cannot be used to withdraw it',
 ];
 
+// Deleting some data without deleting the account — the "delete data URL" in
+// Google Play's Data safety form points at #delete-some-data. Each path is the
+// label the student app shows; keep them in step with student_app.
+const PARTIAL = [
+  ['A post', 'Tap ⋯ on your post, then Delete.'],
+  ['A comment', 'Open the post, tap ⋯ next to your comment, then Delete comment.'],
+  ['A message', 'Press and hold the message. Delete for me removes it from your view; Delete for everyone, on your own messages, removes it for both sides.'],
+  ['A document', 'Settings → Documents, then tap the bin next to the document.'],
+  ['Your profile photo', 'Settings → tap your photo → Remove photo.'],
+  ['Passport details', 'Settings → Education Passport, then edit or clear any field.'],
+  ['An institution’s access to you', 'Settings → Who can see me → Revoke. They stop seeing your name, contact details and documents.'],
+  ['Saved items and follows', 'Settings → Saved, or Settings → Followers & Following.'],
+];
+
 const plural = (n, one, many) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
 
 function describe(error) {
@@ -349,6 +363,13 @@ export default function DeleteAccount() {
                 <p className="mt-1">Open EduXFair, go to your profile, then Settings → Delete account. It does exactly the same thing.</p>
               </div>
               <div>
+                <p className="font-semibold text-text">Only want to remove some things?</p>
+                <p className="mt-1">
+                  You can keep your account.{' '}
+                  <a className="text-brand hover:underline" href="#delete-some-data">See how below.</a>
+                </p>
+              </div>
+              <div>
                 <p className="font-semibold text-text">What we keep</p>
                 <p className="mt-1">
                   Only what the law requires, and safety reports you filed about others. The{' '}
@@ -364,6 +385,40 @@ export default function DeleteAccount() {
                 </p>
               </div>
             </aside>
+          </div>
+        </section>
+
+        <section id="delete-some-data" data-nav="light" className="scroll-mt-24 bg-white py-14 md:py-20">
+          <div className="container-x max-w-[880px]!">
+            <p className="eyebrow">Keep your account</p>
+            <h2 className="mt-3 text-[clamp(1.75rem,4vw,2.4rem)] font-semibold tracking-[-0.025em] text-text">
+              Delete some of your data
+            </h2>
+            <p className="mt-4 max-w-[60ch] text-[16px] leading-relaxed text-[#424245]">
+              You do not have to delete your whole EduXFair account to remove something. Each of
+              these is done in the app, takes effect straight away, and leaves the rest of your
+              account as it is.
+            </p>
+
+            <dl className="mt-8 divide-y divide-line rounded-[28px] bg-cloud px-6 md:px-9">
+              {PARTIAL.map(([what, how]) => (
+                <div key={what} className="grid gap-1 py-5 md:grid-cols-[220px_1fr] md:gap-6">
+                  <dt className="text-[16px] font-semibold text-text">{what}</dt>
+                  <dd className="text-[16px] leading-relaxed text-[#424245]">{how}</dd>
+                </div>
+              ))}
+            </dl>
+
+            <p className="mt-8 max-w-[60ch] text-[15px] leading-relaxed text-mute-2">
+              Anything you cannot remove yourself, write to{' '}
+              <a className="text-brand hover:underline" href={`mailto:${SITE.supportEmail}?subject=Delete%20some%20of%20my%20data`}>
+                {SITE.supportEmail}
+              </a>{' '}
+              from the email address on your account and tell us what to delete. We reply within 30
+              days. What you delete is removed, apart from records the law requires us to keep and
+              safety reports, as the{' '}
+              <a className="text-brand hover:underline" href="/privacy/#how-long-we-keep-things">Privacy Policy</a> explains.
+            </p>
           </div>
         </section>
       </main>
